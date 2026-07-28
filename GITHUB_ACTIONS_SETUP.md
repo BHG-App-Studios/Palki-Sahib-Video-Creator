@@ -29,5 +29,9 @@ Opera profile, installs Opera, signs into Google, opens the YouTube livestream
 for 30 seconds, and closes Opera. The downloader then reads the refreshed
 cookies directly with `yt-dlp --cookies-from-browser opera`.
 
+The workflow also installs and starts the matching YouTube PO-token provider
+before `main.py` runs. yt-dlp uses this local provider at
+`http://127.0.0.1:4416` when YouTube requires a proof-of-origin token.
+
 Keep this repository private because the bundled Opera profile contains browser
 profile databases.

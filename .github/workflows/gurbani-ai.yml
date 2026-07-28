@@ -116,8 +116,92 @@ jobs:
           yt-dlp --version
           node --version
 
+      - name: Start YouTube PO token provider
+        shell: pwsh
+        run: |
+          $providerHome = Join-Path $env:RUNNER_TEMP "bgutil-ytdlp-pot-provider"
+          $providerOutput = Join-Path $env:RUNNER_TEMP "bgutil-provider.out.log"
+          $providerError = Join-Path $env:RUNNER_TEMP "bgutil-provider.err.log"
+
+          git clone `
+            --single-branch `
+            --branch 1.3.1 `
+            https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git `
+            $providerHome
+
+          Push-Location (Join-Path $providerHome "server")
+          try {
+            npm ci
+            npx tsc
+          }
+          finally {
+            Pop-Location
+          }
+
+          $providerProcess = Start-Process `
+            -FilePath "node.exe" `
+            -ArgumentList @("build/main.js") `
+            -WorkingDirectory (Join-Path $providerHome "server") `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $providerOutput `
+            -RedirectStandardError $providerError `
+            -PassThru
+
+          "BGUTIL_PROVIDER_PID=$($providerProcess.Id)" >> $env:GITHUB_ENV
+
+          $deadline = (Get-Date).AddSeconds(30)
+          $ready = $false
+          do {
+            Start-Sleep -Seconds 1
+            $client = [System.Net.Sockets.TcpClient]::new()
+            try {
+              $client.Connect("127.0.0.1", 4416)
+              $ready = $client.Connected
+            }
+            catch {
+              $ready = $false
+            }
+            finally {
+              $client.Dispose()
+            }
+          } until ($ready -or (Get-Date) -ge $deadline)
+
+          if (-not $ready) {
+            if (Test-Path -LiteralPath $providerOutput) {
+              Get-Content -LiteralPath $providerOutput
+            }
+            if (Test-Path -LiteralPath $providerError) {
+              Get-Content -LiteralPath $providerError
+            }
+            throw "The YouTube PO token provider did not start on port 4416."
+          }
+
+          Write-Host "YouTube PO token provider is ready on http://127.0.0.1:4416."
+
       - name: Run Gurbani AI pipeline
         run: python main.py
+
+      - name: Stop YouTube PO token provider
+        if: ${{ always() }}
+        shell: pwsh
+        run: |
+          if ($env:BGUTIL_PROVIDER_PID) {
+            $providerProcess = Get-Process `
+              -Id ([int]$env:BGUTIL_PROVIDER_PID) `
+              -ErrorAction SilentlyContinue
+            if ($providerProcess) {
+              Stop-Process -Id $providerProcess.Id -Force
+            }
+          }
+
+          $providerOutput = Join-Path $env:RUNNER_TEMP "bgutil-provider.out.log"
+          $providerError = Join-Path $env:RUNNER_TEMP "bgutil-provider.err.log"
+          if (Test-Path -LiteralPath $providerOutput) {
+            Get-Content -LiteralPath $providerOutput -Tail 50
+          }
+          if (Test-Path -LiteralPath $providerError) {
+            Get-Content -LiteralPath $providerError -Tail 50
+          }
 
       - name: Upload final video
         if: ${{ success() }}

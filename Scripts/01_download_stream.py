@@ -71,10 +71,13 @@ def get_video_stream_url(video_url):
     command = [
         DOWNLOADER,
         "--ignore-config",
+        "--verbose",
         "--cookies-from-browser",
         "opera",
         "--js-runtimes",
         "node",
+        "--extractor-args",
+        "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
         "--live-from-start",
         "-f",
         FORMAT_SELECTOR,
