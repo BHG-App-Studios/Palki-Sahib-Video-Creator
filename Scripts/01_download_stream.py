@@ -14,7 +14,7 @@ import requests
 # --- CONFIGURATION ---
 BASE_DIR = Path(__file__).resolve().parents[1]
 API_KEY = os.getenv("YT_API_KEY")
-CHANNEL_ID = "UCTC0TUJpgoi_7ind8XPN5iA"
+CHANNEL_ID = "UCY97lcc2wG3CF424ObyWq1g"
 DOWNLOAD_DIR = BASE_DIR / "Original-Video"
 DOWNLOADER = "yt-dlp"
 DOWNLOAD_SECONDS = 100 * 60
@@ -67,7 +67,7 @@ def get_live_video_url():
 
         if any(
             phrase.lower() in title.lower()
-            for phrase in ("Official SGPC LIVE", "Dhan Dhan Ramdas Gur")
+            for phrase in ("Official SGPC LIVE", "ਇੱਛਾ ਪੂਰਤੀ ਸ਼ਬਦ |")
         ):
             return f"https://www.youtube.com/watch?v={video_id}"
 
