@@ -2,6 +2,8 @@ name: Run Gurbani AI
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "30 0 * * *"
 
 permissions:
   contents: read
