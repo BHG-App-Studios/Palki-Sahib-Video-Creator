@@ -1,0 +1,140 @@
+name: Run Gurbani AI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gurbani-ai
+  cancel-in-progress: false
+
+jobs:
+  create-video:
+    name: Set up Opera and run Gurbani AI
+    runs-on: windows-latest
+    timeout-minutes: 240
+    env:
+      PYTHONUNBUFFERED: "1"
+      GOOGLE_ACTIVATION_URL: https://tv.youtube.com/activate
+      YOUTUBE_LIVE_URL: https://www.youtube.com/channel/UCYn6UEtQ771a_OWSiNBoG8w/live
+      YT_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_API_KEY_PAID: ${{ secrets.GEMINI_API_KEY_PAID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Move profile, extract it, and install Opera
+        id: install
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE\Opera-Setup\scripts\install-opera.ps1" `
+            -Workspace "$env:GITHUB_WORKSPACE\Opera-Setup"
+
+      - name: Set Opera as default and open Google sign-in
+        id: browser
+        shell: pwsh
+        env:
+          OPERA_EXECUTABLE: ${{ steps.install.outputs.opera_executable }}
+        run: |
+          & "$env:GITHUB_WORKSPACE\Opera-Setup\scripts\open-opera.ps1" `
+            -OperaExecutable "$env:OPERA_EXECUTABLE" `
+            -Url "$env:GOOGLE_ACTIVATION_URL"
+
+      - name: Sign in to Google and open YouTube
+        id: google
+        shell: pwsh
+        env:
+          OPERA_EXECUTABLE: ${{ steps.install.outputs.opera_executable }}
+          GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
+          GOOGLE_PASSWORD: ${{ secrets.GOOGLE_PASSWORD }}
+        run: |
+          & "$env:GITHUB_WORKSPACE\Opera-Setup\scripts\google-sign-in.ps1" `
+            -OperaExecutable "$env:OPERA_EXECUTABLE" `
+            -Email "$env:GOOGLE_EMAIL" `
+            -Password "$env:GOOGLE_PASSWORD" `
+            -FinalUrl "$env:YOUTUBE_LIVE_URL"
+
+      - name: Wait for YouTube and close Opera
+        shell: pwsh
+        run: |
+          Write-Host "Waiting 30 seconds before closing Opera..."
+          Start-Sleep -Seconds 30
+
+          Write-Host "Closing Opera..."
+          Get-Process -Name opera -ErrorAction SilentlyContinue |
+            Stop-Process -Force
+          Start-Sleep -Seconds 3
+
+          if (Get-Process -Name opera -ErrorAction SilentlyContinue) {
+            throw "Opera is still running."
+          }
+
+      - name: Validate Gurbani AI secrets
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:YT_API_KEY)) {
+            throw "Missing GitHub Actions secret: YOUTUBE_API_KEY"
+          }
+          if (
+            [string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY) -and
+            [string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY_PAID)
+          ) {
+            throw "Add GEMINI_API_KEY or GEMINI_API_KEY_PAID as a GitHub Actions secret."
+          }
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade --requirement requirements.txt
+          python -m pip check
+
+      - name: Validate Python source
+        run: python -m compileall -q main.py Scripts
+
+      - name: Ensure FFmpeg is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --yes --no-progress
+          }
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+
+      - name: Verify runner tools
+        shell: pwsh
+        run: |
+          python --version
+          yt-dlp --version
+          node --version
+
+      - name: Run Gurbani AI pipeline
+        run: python main.py
+
+      - name: Upload final video
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gurbani-ai-final-video
+          path: Today-Short/*.mp4
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload pipeline diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gurbani-ai-diagnostics
+          path: |
+            AI-Response/*.json
+            Extracted-Frames/*.png
+          if-no-files-found: ignore
+          retention-days: 7

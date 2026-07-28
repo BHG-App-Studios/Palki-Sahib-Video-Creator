@@ -1,24 +1,18 @@
 import json
 import re
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
 # ---------------- CONFIG ----------------
 
-RESPONSE_FILE = Path(
-    r"C:\Users\Gurpreet\Downloads\Gurbani-AI\AI-Response\response.json"
-)
-VIDEO_FILE = Path(
-    r"C:\Users\Gurpreet\Downloads\Gurbani-AI\30min-Clip\30min_clip.mp4"
-)
-SHABADS_FOLDER = Path(
-    r"C:\Users\Gurpreet\Downloads\Gurbani-AI\Random-Shabads"
-)
-OUTPUT_FOLDER = Path(
-    r"C:\Users\Gurpreet\Downloads\Gurbani-AI\Today-Short"
-)
+BASE_DIR = Path(__file__).resolve().parents[1]
+RESPONSE_FILE = BASE_DIR / "AI-Response" / "response.json"
+VIDEO_FILE = BASE_DIR / "30min-Clip" / "30min_clip.mp4"
+SHABADS_FOLDER = BASE_DIR / "Random-Shabads"
+OUTPUT_FOLDER = BASE_DIR / "Today-Short"
+APP_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 
 CLIP_DURATION_SECONDS = 59
 BOTTOM_CROP_PIXELS = 133
@@ -58,7 +52,7 @@ def read_start_time():
 
 
 def find_today_shabad():
-    day_number = datetime.now().day
+    day_number = datetime.now(APP_TIMEZONE).day
     shabad_file = SHABADS_FOLDER / f"{day_number}.mp3"
 
     if not shabad_file.is_file():
@@ -74,7 +68,7 @@ def create_short(start_seconds, frame_name, shabad_file):
         raise RuntimeError(f"Source video not found: {VIDEO_FILE}")
 
     OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
-    date_text = datetime.now().strftime("%Y-%m-%d")
+    date_text = datetime.now(APP_TIMEZONE).strftime("%Y-%m-%d")
     output_file = OUTPUT_FOLDER / f"today_short_{date_text}.mp4"
 
     print(f"AI start frame: {frame_name}")

@@ -12,10 +12,11 @@ import requests
 
 
 # --- CONFIGURATION ---
-API_KEY = os.getenv("YT-API-KEY")
+BASE_DIR = Path(__file__).resolve().parents[1]
+API_KEY = os.getenv("YT_API_KEY")
 CHANNEL_ID = "UCYn6UEtQ771a_OWSiNBoG8w"
-DOWNLOAD_DIR = Path(r"C:\Users\Gurpreet\Downloads\Gurbani-AI\Original-Video")
-DOWNLOADER = "youtube"
+DOWNLOAD_DIR = BASE_DIR / "Original-Video"
+DOWNLOADER = "yt-dlp"
 DOWNLOAD_SECONDS = 100 * 60
 FRAGMENT_SECONDS = 5
 FRAGMENT_WORKERS = 8
@@ -31,8 +32,8 @@ FORMAT_SELECTOR = (
 def get_live_video_url():
     if not API_KEY:
         raise RuntimeError(
-            "YT-API-KEY environment variable not found. "
-            "Set it and restart your command prompt/terminal."
+            "YT_API_KEY environment variable not found. "
+            "Configure it before running the pipeline."
         )
 
     response = requests.get(
@@ -80,6 +81,7 @@ def get_video_stream_url(video_url):
         "--get-url",
         video_url,
     ]
+
     result = subprocess.run(
         command,
         capture_output=True,

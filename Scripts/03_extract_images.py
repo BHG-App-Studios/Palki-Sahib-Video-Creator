@@ -1,19 +1,21 @@
 import glob
 import os
 import subprocess
+from pathlib import Path
 
 
 # ---------------- CONFIG ----------------
 
-INPUT_FOLDER = r"C:\Users\Gurpreet\Downloads\Gurbani-AI\30min-Clip"
-OUTPUT_FOLDER = r"C:\Users\Gurpreet\Downloads\Gurbani-AI\Extracted-Frames"
+BASE_DIR = Path(__file__).resolve().parents[1]
+INPUT_FOLDER = BASE_DIR / "30min-Clip"
+OUTPUT_FOLDER = BASE_DIR / "Extracted-Frames"
 
 CLIP_DURATION_SECONDS = 30 * 60
 FRAME_INTERVAL_SECONDS = 5
 
 # ----------------------------------------
 
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
 def timestamp_filename(total_seconds):
@@ -28,7 +30,7 @@ video_extensions = ("*.mp4", "*.mkv", "*.webm")
 video_file = None
 
 for extension in video_extensions:
-    files = glob.glob(os.path.join(INPUT_FOLDER, extension))
+    files = list(INPUT_FOLDER.glob(extension))
     if files:
         video_file = files[0]
         break
@@ -43,10 +45,10 @@ print(f"Extracting frames from: {video_file}")
 regular_frame_count = (
     CLIP_DURATION_SECONDS // FRAME_INTERVAL_SECONDS
 ) - 1
-temporary_pattern = os.path.join(OUTPUT_FOLDER, "_frame_%03d.png")
+temporary_pattern = str(OUTPUT_FOLDER / "_frame_%03d.png")
 
 for temporary_file in glob.glob(
-    os.path.join(OUTPUT_FOLDER, "_frame_*.png")
+    str(OUTPUT_FOLDER / "_frame_*.png")
 ):
     os.remove(temporary_file)
 
@@ -77,7 +79,7 @@ command = [
 subprocess.run(command, check=True)
 
 temporary_files = sorted(
-    glob.glob(os.path.join(OUTPUT_FOLDER, "_frame_*.png"))
+    glob.glob(str(OUTPUT_FOLDER / "_frame_*.png"))
 )
 if len(temporary_files) != regular_frame_count:
     raise RuntimeError(
@@ -87,17 +89,11 @@ if len(temporary_files) != regular_frame_count:
 
 for frame_number, temporary_file in enumerate(temporary_files, start=1):
     timestamp = frame_number * FRAME_INTERVAL_SECONDS
-    output_file = os.path.join(
-        OUTPUT_FOLDER,
-        timestamp_filename(timestamp),
-    )
+    output_file = OUTPUT_FOLDER / timestamp_filename(timestamp)
     os.replace(temporary_file, output_file)
 
 # Extract the last available frame and name it as the 30-minute endpoint.
-final_output_file = os.path.join(
-    OUTPUT_FOLDER,
-    timestamp_filename(CLIP_DURATION_SECONDS),
-)
+final_output_file = OUTPUT_FOLDER / timestamp_filename(CLIP_DURATION_SECONDS)
 subprocess.run(
     [
         "ffmpeg",
@@ -108,12 +104,12 @@ subprocess.run(
         "-sseof",
         "-0.1",
         "-i",
-        video_file,
+        str(video_file),
         "-frames:v",
         "1",
         "-q:v",
         "2",
-        final_output_file,
+        str(final_output_file),
     ],
     check=True,
 )

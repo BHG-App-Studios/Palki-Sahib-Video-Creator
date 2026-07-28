@@ -1,19 +1,18 @@
-import os
 import subprocess
-import glob
+from pathlib import Path
 
 # ---------------- CONFIG ----------------
 
-INPUT_FOLDER = r"C:\Users\Gurpreet\Downloads\Gurbani-AI\Original-Video"
-
-OUTPUT_FOLDER = r"C:\Users\Gurpreet\Downloads\Gurbani-AI\30min-Clip"
+BASE_DIR = Path(__file__).resolve().parents[1]
+INPUT_FOLDER = BASE_DIR / "Original-Video"
+OUTPUT_FOLDER = BASE_DIR / "30min-Clip"
 
 START_TIME = "01:00:00"
 DURATION = "00:30:00"
 
 # ----------------------------------------
 
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Find downloaded video
 video_extensions = ("*.mp4", "*.mkv", "*.webm")
@@ -21,30 +20,30 @@ video_extensions = ("*.mp4", "*.mkv", "*.webm")
 video_file = None
 
 for ext in video_extensions:
-    files = glob.glob(os.path.join(INPUT_FOLDER, ext))
+    files = list(INPUT_FOLDER.glob(ext))
     if files:
         video_file = files[0]
         break
 
 if not video_file:
     print("No downloaded video found.")
-    exit()
+    raise SystemExit(1)
 
-output_file = os.path.join(OUTPUT_FOLDER, "30min_clip.mp4")
+output_file = OUTPUT_FOLDER / "30min_clip.mp4"
 
 command = [
     "ffmpeg",
     "-y",
     "-ss", START_TIME,
-    "-i", video_file,
+    "-i", str(video_file),
     "-t", DURATION,
     "-c", "copy",
-    output_file
+    str(output_file)
 ]
 
 print("Cutting video...")
 
-subprocess.run(command)
+subprocess.run(command, check=True)
 
 print("Done!")
 print(output_file)

@@ -1,0 +1,9 @@
+30min-Clip/*
+AI-Response/*
+Extracted-Frames/*
+Original-Video/*
+Today-Short/*
+
+__pycache__/
+*.py[cod]
+.venv/

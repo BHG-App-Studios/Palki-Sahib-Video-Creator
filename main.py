@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 
 # Base directories
-BASE_DIR = Path(r"C:\Users\Gurpreet\Downloads\Gurbani-AI")
+BASE_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = BASE_DIR / "Scripts"
 
 # The exact sequence of scripts to run

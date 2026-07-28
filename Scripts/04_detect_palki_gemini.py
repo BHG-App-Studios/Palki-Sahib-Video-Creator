@@ -22,15 +22,10 @@ except ImportError:
 
 # ---------------- CONFIG ----------------
 
-FRAMES_FOLDER = Path(
-    r"C:\Users\Gurpreet\Downloads\Gurbani-AI\Extracted-Frames"
-)
-SAMPLES_FOLDER = Path(
-    r"C:\Users\Gurpreet\Downloads\Gurbani-AI\Samples"
-)
-RESPONSE_FOLDER = Path(
-    r"C:\Users\Gurpreet\Downloads\Gurbani-AI\AI-Response"
-)
+BASE_DIR = Path(__file__).resolve().parents[1]
+FRAMES_FOLDER = BASE_DIR / "Extracted-Frames"
+SAMPLES_FOLDER = BASE_DIR / "Samples"
+RESPONSE_FOLDER = BASE_DIR / "AI-Response"
 RESPONSE_FILE = RESPONSE_FOLDER / "response.json"
 
 GEMINI_API_KEY_FREE = (
@@ -78,11 +73,11 @@ INPUT
 
 Frames Folder
 
-C:\\Users\\Gurpreet\\Downloads\\Gurbani-AI\\Extracted-Frames
+Extracted-Frames
 
 Sample Images
 
-C:\\Users\\Gurpreet\\Downloads\\Gurbani-AI\\Samples
+Samples
 
 The Samples folder contains positive examples of exactly what must be detected.
 
