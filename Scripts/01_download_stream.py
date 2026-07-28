@@ -29,6 +29,13 @@ FORMAT_SELECTOR = (
 )
 
 
+def configure_utf8_console():
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def get_live_video_url():
     if not API_KEY:
         raise RuntimeError(
@@ -75,6 +82,8 @@ def get_video_stream_url(video_url):
         "firefox",
         "--js-runtimes",
         "node",
+        "--remote-components",
+        "ejs:github",
         "--live-from-start",
         "-f",
         FORMAT_SELECTOR,
@@ -341,6 +350,7 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_utf8_console()
     try:
         sys.exit(main())
     except (requests.RequestException, subprocess.CalledProcessError, RuntimeError) as error:
