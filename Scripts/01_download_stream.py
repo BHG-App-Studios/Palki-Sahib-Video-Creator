@@ -14,7 +14,7 @@ import requests
 # --- CONFIGURATION ---
 BASE_DIR = Path(__file__).resolve().parents[1]
 API_KEY = os.getenv("YT_API_KEY")
-CHANNEL_ID = "UCYn6UEtQ771a_OWSiNBoG8w"
+CHANNEL_ID = "UCc8bMFsrYs-aHr_ls7CThPg"
 DOWNLOAD_DIR = BASE_DIR / "Original-Video"
 DOWNLOADER = "yt-dlp"
 DOWNLOAD_SECONDS = 100 * 60
