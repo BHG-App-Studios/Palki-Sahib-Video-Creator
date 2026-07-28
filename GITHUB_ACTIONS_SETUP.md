@@ -8,8 +8,6 @@ Add these secrets:
 
 | Secret | Required | Value |
 | --- | --- | --- |
-| `GOOGLE_EMAIL` | Yes | Google account email entered into Opera |
-| `GOOGLE_PASSWORD` | Yes | Google account password entered into Opera |
 | `YT_API_KEY` | Yes | YouTube Data API v3 key |
 | `GEMINI_API_KEY` | Yes, unless the paid key is used | Gemini API key |
 | `GEMINI_API_KEY_PAID` | Optional | Paid/fallback Gemini API key |
@@ -25,19 +23,13 @@ The workflow uses a Windows runner and uploads the final MP4 for 14 days.
 AI response and extracted-frame diagnostics are retained for 7 days.
 
 Before installing the Python dependencies, the workflow restores the bundled
-Opera profile, installs Opera, signs into Google, opens the YouTube livestream
-for 30 seconds, and closes Opera. The downloader then reads the refreshed
-cookies directly with `yt-dlp --cookies-from-browser opera`.
+Firefox profile and installs or upgrades Firefox. It opens YouTube to verify
+the saved Google session, saves a verification screenshot, and closes Firefox.
+The downloader reads the restored cookies directly with
+`yt-dlp --cookies-from-browser firefox`.
 
-The workflow also installs and starts the matching YouTube PO-token provider
-before `main.py` runs. yt-dlp uses this local provider at
-`http://127.0.0.1:4416` when YouTube requires a proof-of-origin token.
+The verification screenshot is uploaded with the existing GitHub Actions
+diagnostic artifact. No Worker screenshot upload is used.
 
-During Google sign-in, the workflow captures five local screenshots: after
-email submission, after password submission, after the final Google Enter,
-before opening YouTube, and after opening YouTube. They are uploaded directly
-as GitHub Actions diagnostic artifacts; no Worker or screenshot-upload secret
-is required.
-
-Keep this repository private because the bundled Opera profile contains browser
-profile databases.
+Keep this repository private because the bundled Firefox profile contains
+browser profile databases.
