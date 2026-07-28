@@ -78,6 +78,8 @@ def get_video_stream_url(video_url):
         "node",
         "--extractor-args",
         "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416",
+        "--extractor-args",
+        "youtube:player_client=mweb",
         "--live-from-start",
         "-f",
         FORMAT_SELECTOR,
