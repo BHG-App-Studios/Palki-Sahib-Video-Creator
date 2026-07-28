@@ -73,7 +73,7 @@ def get_video_stream_url(video_url):
         "--ignore-config",
         "--verbose",
         "--cookies-from-browser",
-        "opera",
+        "firefox",
         "--js-runtimes",
         "node",
         "--extractor-args",

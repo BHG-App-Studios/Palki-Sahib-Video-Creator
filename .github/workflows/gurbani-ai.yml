@@ -12,13 +12,11 @@ concurrency:
 
 jobs:
   create-video:
-    name: Set up Opera and run Gurbani AI
+    name: Set up Firefox and run Gurbani AI
     runs-on: windows-latest
     timeout-minutes: 240
     env:
       PYTHONUNBUFFERED: "1"
-      GOOGLE_ACTIVATION_URL: https://tv.youtube.com/activate
-      YOUTUBE_LIVE_URL: https://www.youtube.com/channel/UCYn6UEtQ771a_OWSiNBoG8w/live
       YT_API_KEY: ${{ secrets.YT_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY_PAID: ${{ secrets.GEMINI_API_KEY_PAID }}
@@ -27,52 +25,21 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Move profile, extract it, and install Opera
-        id: install
+      - name: Install Firefox and restore profile
+        id: firefox
         shell: pwsh
         run: |
-          & "$env:GITHUB_WORKSPACE\Opera-Setup\scripts\install-opera.ps1" `
-            -Workspace "$env:GITHUB_WORKSPACE\Opera-Setup"
+          & "$env:GITHUB_WORKSPACE\Firefox-Setup\scripts\setup-firefox.ps1" `
+            -Workspace "$env:GITHUB_WORKSPACE\Firefox-Setup"
 
-      - name: Set Opera as default and open Google sign-in
-        id: browser
-        shell: pwsh
-        env:
-          OPERA_EXECUTABLE: ${{ steps.install.outputs.opera_executable }}
-        run: |
-          & "$env:GITHUB_WORKSPACE\Opera-Setup\scripts\open-opera.ps1" `
-            -OperaExecutable "$env:OPERA_EXECUTABLE" `
-            -Url "$env:GOOGLE_ACTIVATION_URL"
-
-      - name: Sign in to Google and open YouTube
-        id: google
+      - name: Verify Google sign-in via YouTube screenshot
         shell: pwsh
         env:
-          OPERA_EXECUTABLE: ${{ steps.install.outputs.opera_executable }}
-          GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
-          GOOGLE_PASSWORD: ${{ secrets.GOOGLE_PASSWORD }}
+          FIREFOX_EXECUTABLE: ${{ steps.firefox.outputs.firefox_executable }}
         run: |
-          & "$env:GITHUB_WORKSPACE\Opera-Setup\scripts\google-sign-in.ps1" `
-            -OperaExecutable "$env:OPERA_EXECUTABLE" `
-            -Email "$env:GOOGLE_EMAIL" `
-            -Password "$env:GOOGLE_PASSWORD" `
-            -FinalUrl "$env:YOUTUBE_LIVE_URL" `
-            -ScreenshotDirectory "$env:GITHUB_WORKSPACE\Opera-Setup\sign-in-captures"
-
-      - name: Wait for YouTube and close Opera
-        shell: pwsh
-        run: |
-          Write-Host "Waiting 30 seconds before closing Opera..."
-          Start-Sleep -Seconds 30
-
-          Write-Host "Closing Opera..."
-          Get-Process -Name opera -ErrorAction SilentlyContinue |
-            Stop-Process -Force
-          Start-Sleep -Seconds 3
-
-          if (Get-Process -Name opera -ErrorAction SilentlyContinue) {
-            throw "Opera is still running."
-          }
+          & "$env:GITHUB_WORKSPACE\Firefox-Setup\scripts\verify-firefox.ps1" `
+            -FirefoxExecutable "$env:FIREFOX_EXECUTABLE" `
+            -ScreenshotDirectory "$env:GITHUB_WORKSPACE\Firefox-Setup\verification-screenshots"
 
       - name: Validate Gurbani AI secrets
         shell: pwsh
@@ -221,6 +188,6 @@ jobs:
           path: |
             AI-Response/*.json
             Extracted-Frames/*.png
-            Opera-Setup/sign-in-captures/*.jpg
+            Firefox-Setup/verification-screenshots/*.jpg
           if-no-files-found: ignore
           retention-days: 7
