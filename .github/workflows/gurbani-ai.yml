@@ -19,7 +19,7 @@ jobs:
       PYTHONUNBUFFERED: "1"
       GOOGLE_ACTIVATION_URL: https://tv.youtube.com/activate
       YOUTUBE_LIVE_URL: https://www.youtube.com/channel/UCYn6UEtQ771a_OWSiNBoG8w/live
-      YT_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      YT_API_KEY: ${{ secrets.YT_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY_PAID: ${{ secrets.GEMINI_API_KEY_PAID }}
 
@@ -77,7 +77,7 @@ jobs:
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:YT_API_KEY)) {
-            throw "Missing GitHub Actions secret: YOUTUBE_API_KEY"
+            throw "Missing GitHub Actions secret: YT_API_KEY"
           }
           if (
             [string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY) -and

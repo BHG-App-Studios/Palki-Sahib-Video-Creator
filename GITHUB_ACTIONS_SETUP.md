@@ -10,7 +10,7 @@ Add these secrets:
 | --- | --- | --- |
 | `GOOGLE_EMAIL` | Yes | Google account email entered into Opera |
 | `GOOGLE_PASSWORD` | Yes | Google account password entered into Opera |
-| `YOUTUBE_API_KEY` | Yes | YouTube Data API v3 key |
+| `YT_API_KEY` | Yes | YouTube Data API v3 key |
 | `GEMINI_API_KEY` | Yes, unless the paid key is used | Gemini API key |
 | `GEMINI_API_KEY_PAID` | Optional | Paid/fallback Gemini API key |
 
