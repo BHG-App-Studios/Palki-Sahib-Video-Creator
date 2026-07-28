@@ -13,6 +13,8 @@ Add these secrets:
 | `YT_API_KEY` | Yes | YouTube Data API v3 key |
 | `GEMINI_API_KEY` | Yes, unless the paid key is used | Gemini API key |
 | `GEMINI_API_KEY_PAID` | Optional | Paid/fallback Gemini API key |
+| `CLOUDFLARE_WORKER_URL` | Yes | Worker endpoint used by the existing screenshot-upload script |
+| `CLOUDFLARE_WORKER_API_KEY` | Yes | API key for that screenshot-upload worker |
 
 ## Run The Pipeline
 
@@ -32,6 +34,10 @@ cookies directly with `yt-dlp --cookies-from-browser opera`.
 The workflow also installs and starts the matching YouTube PO-token provider
 before `main.py` runs. yt-dlp uses this local provider at
 `http://127.0.0.1:4416` when YouTube requires a proof-of-origin token.
+
+Before Opera closes, the workflow captures the visible runner screen using the
+existing `capture-and-upload.ps1` script. The image is uploaded through the
+configured Cloudflare Worker and retained as a workflow diagnostic artifact.
 
 Keep this repository private because the bundled Opera profile contains browser
 profile databases.
