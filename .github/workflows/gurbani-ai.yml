@@ -56,19 +56,8 @@ jobs:
             -OperaExecutable "$env:OPERA_EXECUTABLE" `
             -Email "$env:GOOGLE_EMAIL" `
             -Password "$env:GOOGLE_PASSWORD" `
-            -FinalUrl "$env:YOUTUBE_LIVE_URL"
-
-      - name: Capture Opera sign-in screen
-        id: capture
-        shell: pwsh
-        env:
-          CLOUDFLARE_WORKER_URL: https://link-shield-ai.iemgurpreets.workers.dev/
-          CLOUDFLARE_WORKER_API_KEY: ${{ secrets.CLOUDFLARE_WORKER_API_KEY }}
-        run: |
-          & "$env:GITHUB_WORKSPACE\Opera-Setup\scripts\capture-and-upload.ps1" `
-            -OutputPath "$env:GITHUB_WORKSPACE\Opera-Setup\opera-sign-in.jpg" `
-            -WorkerUrl "$env:CLOUDFLARE_WORKER_URL" `
-            -ApiKey "$env:CLOUDFLARE_WORKER_API_KEY"
+            -FinalUrl "$env:YOUTUBE_LIVE_URL" `
+            -ScreenshotDirectory "$env:GITHUB_WORKSPACE\Opera-Setup\sign-in-captures"
 
       - name: Wait for YouTube and close Opera
         shell: pwsh
@@ -232,6 +221,6 @@ jobs:
           path: |
             AI-Response/*.json
             Extracted-Frames/*.png
-            Opera-Setup/opera-sign-in.jpg
+            Opera-Setup/sign-in-captures/*.jpg
           if-no-files-found: ignore
           retention-days: 7
