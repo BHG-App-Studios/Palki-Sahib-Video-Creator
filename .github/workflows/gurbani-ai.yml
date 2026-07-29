@@ -98,13 +98,11 @@ jobs:
       - name: Run Gurbani AI pipeline
         run: python main.py
 
-      - name: Upload final video + Screenshot Firefox
+      - name: Upload Firefox verification screenshot
         if: ${{ success() }}
         uses: actions/upload-artifact@v7
         with:
-          name: gurbani-ai-final-video
-          path: |
-            Today-Short/*.mp4
-            Firefox-Setup/verification-screenshots/*.jpg
+          name: firefox-verification-screenshot
+          path: Firefox-Setup/verification-screenshots/*.jpg
           if-no-files-found: error
           retention-days: 7
