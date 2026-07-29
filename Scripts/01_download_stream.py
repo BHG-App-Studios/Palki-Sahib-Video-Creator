@@ -279,6 +279,8 @@ def download_video(video_url):
                 "firefox",
                 "--js-runtimes",
                 "node",
+                "--remote-components",
+                "ejs:github",
                 "-f",
                 FORMAT_SELECTOR,
                 "-o",
