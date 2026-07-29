@@ -110,6 +110,10 @@ jobs:
       - name: Run Gurbani AI pipeline
         run: python main.py
 
+      - name: Notify admin app of failed run
+        if: ${{ failure() }}
+        run: node Publish-Scripts/notify-admin-failure.js
+
       - name: Upload Firefox verification screenshot
         if: ${{ success() }}
         uses: actions/upload-artifact@v7

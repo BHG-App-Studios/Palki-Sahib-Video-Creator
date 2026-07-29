@@ -45,6 +45,7 @@ MAX_IMAGE_SIZE = (1024, 1024)
 JPEG_QUALITY = 85
 MODEL_RETRY_DELAY_SECONDS = 2
 ALL_MODELS_RETRY_DELAY_SECONDS = 30
+MAX_FALLBACK_ROUNDS = 5
 
 # ----------------------------------------
 
@@ -291,7 +292,7 @@ def try_model_chain(client, key_label, contents, fallback_round):
 def call_gemini(clients, active_key_index, contents):
     fallback_round = 1
 
-    while True:
+    while fallback_round <= MAX_FALLBACK_ROUNDS:
         key_label, client = clients[active_key_index]
         result, errors = try_model_chain(
             client,
@@ -313,6 +314,9 @@ def call_gemini(clients, active_key_index, contents):
             )
             continue
 
+        if fallback_round == MAX_FALLBACK_ROUNDS:
+            break
+
         print(
             f"All models failed with the {key_label} key. Retrying the "
             f"complete fallback chain in {ALL_MODELS_RETRY_DELAY_SECONDS}s.\n"
@@ -321,6 +325,11 @@ def call_gemini(clients, active_key_index, contents):
         )
         time.sleep(ALL_MODELS_RETRY_DELAY_SECONDS)
         fallback_round += 1
+
+    raise RuntimeError(
+        "Gemini failed to return a response after "
+        f"{MAX_FALLBACK_ROUNDS} complete fallback rounds."
+    )
 
 
 def main():

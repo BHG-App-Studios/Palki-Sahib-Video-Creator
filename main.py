@@ -37,6 +37,7 @@ FOLDERS_TO_EMPTY = [
 ]
 
 RETRY_DELAY_SECONDS = 15  # Delay before retrying a failed script
+MAX_SCRIPT_ATTEMPTS = 5
 
 def run_script_with_retries(script_name):
     """
@@ -56,8 +57,7 @@ def run_script_with_retries(script_name):
         logging.error(f"Critical Error: Unsupported script extension for {script_name}")
         sys.exit(1)
 
-    attempt = 1
-    while True:
+    for attempt in range(1, MAX_SCRIPT_ATTEMPTS + 1):
         logging.info(f"========== Starting {script_name} (Attempt {attempt}) ==========")
         try:
             # Execute the script
@@ -68,19 +68,21 @@ def run_script_with_retries(script_name):
                 check=True
             )
             logging.info(f"========== SUCCESS: {script_name} completed successfully ==========\n")
-            break  # Exit the retry loop on success
+            return
             
         except subprocess.CalledProcessError as e:
             logging.error(f"========== ERROR: {script_name} failed with exit code {e.returncode} ==========")
-            logging.info(f"Retrying in {RETRY_DELAY_SECONDS} seconds...\n")
-            time.sleep(RETRY_DELAY_SECONDS)
-            attempt += 1
         except Exception as e:
             # Catch other unexpected exceptions (e.g. permission issues)
             logging.error(f"========== UNEXPECTED ERROR: {script_name} failed: {e} ==========")
-            logging.info(f"Retrying in {RETRY_DELAY_SECONDS} seconds...\n")
-            time.sleep(RETRY_DELAY_SECONDS)
-            attempt += 1
+
+        if attempt == MAX_SCRIPT_ATTEMPTS:
+            raise RuntimeError(
+                f"{script_name} failed after {MAX_SCRIPT_ATTEMPTS} attempts."
+            )
+
+        logging.info(f"Retrying in {RETRY_DELAY_SECONDS} seconds...\n")
+        time.sleep(RETRY_DELAY_SECONDS)
 
 def empty_directories():
     logging.info("Cleaning up specified directories...")
