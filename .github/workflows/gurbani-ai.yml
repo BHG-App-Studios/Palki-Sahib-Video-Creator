@@ -88,23 +88,13 @@ jobs:
       - name: Run Gurbani AI pipeline
         run: python main.py
 
-      - name: Upload final video
+      - name: Upload final video + Screenshot Firefox
         if: ${{ success() }}
         uses: actions/upload-artifact@v7
         with:
           name: gurbani-ai-final-video
-          path: Today-Short/*.mp4
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload pipeline diagnostics
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: gurbani-ai-diagnostics
           path: |
-            AI-Response/*.json
-            Extracted-Frames/*.png
+            Today-Short/*.mp4
             Firefox-Setup/verification-screenshots/*.jpg
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
