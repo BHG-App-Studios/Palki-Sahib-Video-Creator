@@ -25,7 +25,19 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 # --- Step 1: Uninstall existing Firefox & clear old profile data ---
 
 Write-Host "Uninstalling any existing Firefox..."
-Start-Process -FilePath 'winget.exe' -ArgumentList 'uninstall', '--id', 'Mozilla.Firefox', '--silent' -NoNewWindow -Wait -PassThru | Out-Null
+$uninstallPaths = @(
+    Join-Path $env:ProgramFiles 'Mozilla Firefox\uninstall\helper.exe'
+)
+if (${env:ProgramFiles(x86)}) {
+    $uninstallPaths += Join-Path ${env:ProgramFiles(x86)} 'Mozilla Firefox\uninstall\helper.exe'
+}
+
+foreach ($helper in $uninstallPaths) {
+    if (Test-Path -LiteralPath $helper) {
+        Write-Host "Running uninstaller silently: $helper"
+        Start-Process -FilePath $helper -ArgumentList '/S' -Wait -NoNewWindow
+    }
+}
 
 $roamingDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData)
 $mozillaDirectory = Join-Path $roamingDirectory 'Mozilla'
