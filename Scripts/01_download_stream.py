@@ -15,8 +15,6 @@ import requests
 BASE_DIR = Path(__file__).resolve().parents[1]
 API_KEY = os.getenv("YT_API_KEY")
 CHANNEL_ID = "UCYn6UEtQ771a_OWSiNBoG8w"
-VIDEO_URL = "https://www.youtube.com/watch?v=vW372tfHf7U"
-ARCHIVED_VIDEO_TEST_MODE = True
 DOWNLOAD_DIR = BASE_DIR / "Original-Video"
 DOWNLOADER = "yt-dlp"
 DOWNLOAD_SECONDS = 100 * 60
@@ -39,9 +37,6 @@ def configure_utf8_console():
 
 
 def get_live_video_url():
-    if ARCHIVED_VIDEO_TEST_MODE:
-        print(f"Using hardcoded archived test video: {VIDEO_URL}")
-        return VIDEO_URL
 
     if not API_KEY:
         raise RuntimeError(
@@ -90,16 +85,12 @@ def get_video_stream_url(video_url):
         "node",
         "--remote-components",
         "ejs:github",
-    ]
-    if not ARCHIVED_VIDEO_TEST_MODE:
-        command.append("--live-from-start")
-
-    command.extend([
+        "--live-from-start",
         "-f",
         FORMAT_SELECTOR,
         "--get-url",
         video_url,
-    ])
+    ]
 
     result = subprocess.run(
         command,
@@ -123,33 +114,6 @@ def get_video_stream_url(video_url):
         )
 
     return urls[0]
-
-
-def download_archived_video(stream_url, output_path):
-    print(
-        f"Downloading the first {DOWNLOAD_SECONDS // 60} minutes "
-        "of the archived test video..."
-    )
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-i",
-            stream_url,
-            "-t",
-            str(DOWNLOAD_SECONDS),
-            "-map",
-            "0:v:0",
-            "-an",
-            "-c",
-            "copy",
-            str(output_path),
-        ],
-        check=True,
-    )
 
 
 def download_fragment(base_url, sequence, live_edge_reached):
@@ -342,32 +306,29 @@ def download_video(video_url):
 
     try:
         video_stream_url = get_video_stream_url(video_url)
-        if ARCHIVED_VIDEO_TEST_MODE:
-            download_archived_video(video_stream_url, temporary_output)
-        else:
-            download_fragments(video_stream_url, video_part, "video")
+        download_fragments(video_stream_url, video_part, "video")
 
-            print(f"Trimming video to exactly {duration_minutes} minutes...")
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-i",
-                    str(video_part),
-                    "-t",
-                    str(DOWNLOAD_SECONDS),
-                    "-map",
-                    "0:v:0",
-                    "-an",
-                    "-c",
-                    "copy",
-                    str(temporary_output),
-                ],
-                check=True,
-            )
+        print(f"Trimming video to exactly {duration_minutes} minutes...")
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(video_part),
+                "-t",
+                str(DOWNLOAD_SECONDS),
+                "-map",
+                "0:v:0",
+                "-an",
+                "-c",
+                "copy",
+                str(temporary_output),
+            ],
+            check=True,
+        )
         os.replace(temporary_output, output_path)
     finally:
         video_part.unlink(missing_ok=True)
