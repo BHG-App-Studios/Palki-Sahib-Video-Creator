@@ -21,6 +21,12 @@ jobs:
       YT_API_KEY: ${{ secrets.YT_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY_PAID: ${{ secrets.GEMINI_API_KEY_PAID }}
+      HLS_SECRET: ${{ secrets.HLS_SECRET }}
+      FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+      FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
 
     steps:
       - name: Check out repository
@@ -84,6 +90,9 @@ jobs:
           python --version
           yt-dlp --version
           node --version
+
+      - name: Install Node dependencies
+        run: npm install puppeteer firebase-admin googleapis
 
       - name: Run Gurbani AI pipeline
         run: python main.py
