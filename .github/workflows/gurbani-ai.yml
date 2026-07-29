@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   create-video:
-    name: Set up Firefox and run Gurbani AI
+    name: Set up Palki Sahib Video Creator
     runs-on: windows-latest
     timeout-minutes: 240
     env:
