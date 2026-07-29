@@ -18,13 +18,47 @@ if ($archiveHeader -match '^version https://git-lfs.github.com/spec/') {
     throw 'Firefox.zip is a Git LFS pointer instead of the real archive.'
 }
 
-# --- Step 1: Install or upgrade Firefox to the latest version ---
-# The runner may have an older pre-installed Firefox. The backed-up profile
-# was created with the latest version, so Firefox will refuse to load it if
-# the installed version is older. Always ensure we have the latest.
-
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     throw 'winget is not available on this Windows runner.'
+}
+
+# --- Step 1: Uninstall existing Firefox & clear old profile data ---
+
+Write-Host "Uninstalling any existing Firefox..."
+Start-Process -FilePath 'winget.exe' -ArgumentList 'uninstall', '--id', 'Mozilla.Firefox', '--silent' -NoNewWindow -Wait -PassThru | Out-Null
+
+$roamingDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData)
+$mozillaDirectory = Join-Path $roamingDirectory 'Mozilla'
+
+if (Test-Path -LiteralPath $mozillaDirectory) {
+    Write-Host "Deleting old Mozilla data at $mozillaDirectory"
+    Remove-Item -LiteralPath $mozillaDirectory -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# --- Step 2: Fresh Install Firefox 153.0.1 ---
+
+Write-Host 'Installing Firefox 153.0.1 via winget...'
+$wingetArguments = @(
+    'install'
+    '-e'
+    '--id', 'Mozilla.Firefox'
+    '-v', '153.0.1'
+    '--silent'
+    '--accept-package-agreements'
+    '--accept-source-agreements'
+    '--disable-interactivity'
+)
+
+Write-Host "Running: winget $($wingetArguments -join ' ')"
+$process = Start-Process `
+    -FilePath 'winget.exe' `
+    -ArgumentList $wingetArguments `
+    -NoNewWindow `
+    -Wait `
+    -PassThru
+
+if ($process.ExitCode -ne 0) {
+    throw "Firefox installation failed with winget exit code $($process.ExitCode)."
 }
 
 $firefoxCandidates = @(
@@ -35,81 +69,19 @@ if (${env:ProgramFiles(x86)}) {
     $firefoxCandidates += Join-Path ${env:ProgramFiles(x86)} 'Mozilla Firefox\firefox.exe'
 }
 
-$existingFirefox = $firefoxCandidates |
-    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-    Select-Object -First 1
-
-if ($existingFirefox) {
-    $existingVersion = (Get-Item -LiteralPath $existingFirefox).VersionInfo.ProductVersion
-    Write-Host "Found pre-installed Firefox $existingVersion. Upgrading to latest..."
-
-    $wingetArguments = @(
-        'upgrade'
-        '--exact'
-        '--id', 'Mozilla.Firefox'
-        '--silent'
-        '--accept-package-agreements'
-        '--accept-source-agreements'
-        '--disable-interactivity'
-    )
-
-    Write-Host "Running: winget $($wingetArguments -join ' ')"
-    $process = Start-Process `
-        -FilePath 'winget.exe' `
-        -ArgumentList $wingetArguments `
-        -NoNewWindow `
-        -Wait `
-        -PassThru
-
-    # Exit code 0 = upgraded, -1978335189 (0x8A150017) = already latest
-    if ($process.ExitCode -ne 0 -and $process.ExitCode -ne -1978335189) {
-        Write-Host "winget upgrade exit code: $($process.ExitCode) (non-fatal, continuing)"
-    }
-}
-else {
-    Write-Host 'Firefox not found. Installing via winget...'
-
-    $wingetArguments = @(
-        'install'
-        '--exact'
-        '--id', 'Mozilla.Firefox'
-        '--silent'
-        '--accept-package-agreements'
-        '--accept-source-agreements'
-        '--disable-interactivity'
-    )
-
-    Write-Host "Running: winget $($wingetArguments -join ' ')"
-    $process = Start-Process `
-        -FilePath 'winget.exe' `
-        -ArgumentList $wingetArguments `
-        -NoNewWindow `
-        -Wait `
-        -PassThru
-
-    if ($process.ExitCode -ne 0) {
-        throw "Firefox installation failed with winget exit code $($process.ExitCode)."
-    }
-}
-
 $firefoxExecutable = $firefoxCandidates |
     Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
     Select-Object -First 1
 
 if (-not $firefoxExecutable) {
-    throw 'Firefox executable was not found after install/upgrade.'
+    throw 'Firefox executable was not found after install.'
 }
 
 $firefoxVersion = (Get-Item -LiteralPath $firefoxExecutable).VersionInfo.ProductVersion
 Write-Host "Firefox executable: $firefoxExecutable"
 Write-Host "Firefox version: $firefoxVersion"
 
-# --- Step 2: Extract the backed-up profile over any default profile ---
-
-$roamingDirectory = [Environment]::GetFolderPath(
-    [Environment+SpecialFolder]::ApplicationData
-)
-$mozillaDirectory = Join-Path $roamingDirectory 'Mozilla'
+# --- Step 3: Extract the backed-up profile ---
 
 New-Item -ItemType Directory -Path $mozillaDirectory -Force | Out-Null
 
