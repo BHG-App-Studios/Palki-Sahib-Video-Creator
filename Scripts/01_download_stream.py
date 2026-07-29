@@ -14,7 +14,8 @@ import requests
 # --- CONFIGURATION ---
 BASE_DIR = Path(__file__).resolve().parents[1]
 API_KEY = os.getenv("YT_API_KEY")
-CHANNEL_ID = "UCY97lcc2wG3CF424ObyWq1g"
+CHANNEL_ID = "UCYn6UEtQ771a_OWSiNBoG8w"
+VIDEO_URL = "https://www.youtube.com/watch?v=vW372tfHf7U"
 DOWNLOAD_DIR = BASE_DIR / "Original-Video"
 DOWNLOADER = "yt-dlp"
 DOWNLOAD_SECONDS = 100 * 60
@@ -37,6 +38,9 @@ def configure_utf8_console():
 
 
 def get_live_video_url():
+    print(f"Using hardcoded test video: {VIDEO_URL}")
+    return VIDEO_URL
+
     if not API_KEY:
         raise RuntimeError(
             "YT_API_KEY environment variable not found. "
@@ -67,7 +71,7 @@ def get_live_video_url():
 
         if any(
             phrase.lower() in title.lower()
-            for phrase in ("Official SGPC LIVE", "ਇੱਛਾ ਪੂਰਤੀ ਸ਼ਬਦ |")
+            for phrase in ("Official SGPC LIVE", "Sachkhand Sri Harmandir Sahib")
         ):
             return f"https://www.youtube.com/watch?v={video_id}"
 
