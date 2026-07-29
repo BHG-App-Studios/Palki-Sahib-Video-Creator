@@ -24,7 +24,8 @@ SCRIPTS_TO_RUN = [
     "02_cut_video.py",
     "03_extract_images.py",
     "04_detect_palki_gemini.py",
-    "05_create_today_short.py"
+    "05_create_today_short.py",
+    "create_video.js"
 ]
 
 FOLDERS_TO_EMPTY = [
@@ -39,7 +40,7 @@ RETRY_DELAY_SECONDS = 15  # Delay before retrying a failed script
 
 def run_script_with_retries(script_name):
     """
-    Runs a python script and automatically retries it upon failure.
+    Runs a script and automatically retries it upon failure.
     """
     script_path = SCRIPTS_DIR / script_name
     
@@ -47,14 +48,22 @@ def run_script_with_retries(script_name):
         logging.error(f"Critical Error: Script not found at {script_path}")
         sys.exit(1)
 
+    if script_path.suffix == '.py':
+        cmd = [sys.executable, str(script_path)]
+    elif script_path.suffix == '.js':
+        cmd = ["node", str(script_path)]
+    else:
+        logging.error(f"Critical Error: Unsupported script extension for {script_name}")
+        sys.exit(1)
+
     attempt = 1
     while True:
         logging.info(f"========== Starting {script_name} (Attempt {attempt}) ==========")
         try:
-            # Execute the script using the current python interpreter
+            # Execute the script
             # Output is automatically streamed to the console
             subprocess.run(
-                [sys.executable, str(script_path)],
+                cmd,
                 cwd=str(BASE_DIR),
                 check=True
             )
