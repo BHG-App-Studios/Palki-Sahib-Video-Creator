@@ -56,10 +56,10 @@ function Save-Screenshot {
 
 # Open YouTube in Firefox to verify the Google session is alive
 Write-Host "Opening YouTube in Firefox to verify Google sign-in..."
-Start-Process -FilePath $FirefoxExecutable -ArgumentList @('https://www.youtube.com')
+Start-Process -FilePath $FirefoxExecutable -ArgumentList @('https://www.youtube.com/channel/UCYn6UEtQ771a_OWSiNBoG8w/live')
 
-Write-Host 'Waiting 20 seconds for YouTube to load...'
-Start-Sleep -Seconds 20
+Write-Host 'Waiting 30 seconds for YouTube to load...'
+Start-Sleep -Seconds 30
 
 Save-Screenshot -Name '01-youtube-sign-in-check.jpg'
 
