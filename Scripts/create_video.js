@@ -145,6 +145,7 @@ async function createVideo() {
         if (fs.existsSync(tempOverlayPath)) fs.unlinkSync(tempOverlayPath); 
         if (fs.existsSync(tempPingPongBgPath)) fs.unlinkSync(tempPingPongBgPath);
         if (fs.existsSync(rawOutputFilePath)) fs.unlinkSync(rawOutputFilePath);
+        process.exitCode = 1;
     }
 }
 
@@ -184,37 +185,27 @@ async function processPostVideo(videoPath, dateStr) {
             const brandCmd = `ffmpeg -y -i "${videoPath}" -i "${logoPath}" -filter_complex "[0:v]scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(ih,iw),min(1280,ih),-2)'[v]; [1:v]scale=iw*0.17:-1[logo]; [v][logo]overlay=x=W-w-(W*0.03):y=H*0.03" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -movflags +faststart "${brandedPath}"`;
             await execPromise(brandCmd);
 
-            // --- ADDED THIS SECTION FOR YOUTUBE ---
-            // After the branded MP4 is built, we trigger the YouTube publish script
-            console.log(`📺 Branded MP4 created. Triggering YouTube publish script...`);
-            const publishYoutube = exec(`node Publish-Scripts/publish-youtube.js "${dateStr}"`, (err, stdout, stderr) => {
-                if (err) console.error(`\n❌ YouTube Publish Script Error:`, err);
-                console.log(stdout);
-                if (stderr) console.error(stderr);
-            });
-            // Stream output to console
-            publishYoutube.stdout.pipe(process.stdout);
-            publishYoutube.stderr.pipe(process.stderr);
-            // ----------------------------------------
         } else {
             console.log(`⚠️ 'logo.png' not found in root, skipping branded video creation.`);
         }
 
-        console.log(`☁️ Post-processing complete. Handing over to publish-cloudflare.js...`);
-        
-        // Trigger the Cloudflare publish script
-        const publishProcess = exec(`node Publish-Scripts/publish-cloudflare.js "${dateStr}"`, (err, stdout, stderr) => {
-            if (err) console.error(`\n❌ Publish Script Error:`, err);
-            console.log(stdout);
-            if (stderr) console.error(stderr);
-        });
+        console.log(`☁️ Uploading media and updating Firestore...`);
+        const cloudflareResult = await execPromise(
+            `node Publish-Scripts/publish-cloudflare.js "${dateStr}"`
+        );
+        process.stdout.write(cloudflareResult.stdout);
+        process.stderr.write(cloudflareResult.stderr);
 
-        // Stream output of publish-cloudflare script to console
-        publishProcess.stdout.pipe(process.stdout);
-        publishProcess.stderr.pipe(process.stderr);
+        console.log(`📺 Uploading branded video to YouTube...`);
+        const youtubeResult = await execPromise(
+            `node Publish-Scripts/publish-youtube.js "${dateStr}"`
+        );
+        process.stdout.write(youtubeResult.stdout);
+        process.stderr.write(youtubeResult.stderr);
 
     } catch (err) {
         console.error(`❌ Post-processing Error:`, err.message);
+        throw err;
     }
 }
 

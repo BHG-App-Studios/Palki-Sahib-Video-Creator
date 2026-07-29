@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const admin = require('firebase-admin');
+const { cert, initializeApp } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
 // Date is passed from create_video.js
 const dateStr = process.argv[2] || 'unknown_date';
@@ -27,8 +28,8 @@ try {
     // Fix formatting in case GitHub Secrets escapes newlines in the private key
     privateKey = privateKey.replace(/\\n/g, '\n');
 
-    admin.initializeApp({
-        credential: admin.credential.cert({
+    initializeApp({
+        credential: cert({
             projectId: projectId,
             clientEmail: clientEmail,
             privateKey: privateKey
@@ -39,7 +40,7 @@ try {
     process.exit(1);
 }
 
-const db = admin.firestore();
+const db = getFirestore();
 const currentTimestamp = Date.now(); // Integer timestamp
 
 // Keys mapped identical to bash script logic

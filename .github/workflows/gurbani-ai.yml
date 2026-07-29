@@ -61,6 +61,19 @@ jobs:
           ) {
             throw "Add GEMINI_API_KEY or GEMINI_API_KEY_PAID as a GitHub Actions secret."
           }
+          foreach ($secretName in @(
+            "HLS_SECRET",
+            "FIREBASE_PROJECT_ID",
+            "FIREBASE_CLIENT_EMAIL",
+            "FIREBASE_PRIVATE_KEY",
+            "YOUTUBE_CLIENT_ID",
+            "YOUTUBE_CLIENT_SECRET",
+            "YOUTUBE_REFRESH_TOKEN"
+          )) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$secretName").Value)) {
+              throw "Missing GitHub Actions secret: $secretName"
+            }
+          }
 
       - name: Set up Python
         uses: actions/setup-python@v6
