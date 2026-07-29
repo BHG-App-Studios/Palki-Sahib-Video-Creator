@@ -5,6 +5,7 @@ const util = require('util');
 const puppeteer = require('puppeteer'); 
 
 const execPromise = util.promisify(exec); // Allows us to use async/await with FFmpeg commands
+const completionWorkerUrl = 'https://palki-sahib-video-creator-trigger.iemgurpreets.workers.dev';
 
 // --- DYNAMIC DIRECTORY SETUP ---
 const baseDir = path.join(__dirname, '..'); 
@@ -189,6 +190,26 @@ async function processPostVideo(videoPath, dateStr) {
             console.log(`⚠️ 'logo.png' not found in root, skipping branded video creation.`);
         }
 
+        if (!process.env.RUN_COMPLETION_SECRET) {
+            throw new Error('RUN_COMPLETION_SECRET is missing.');
+        }
+        const statusResponse = await fetch(`${completionWorkerUrl}/checkRunStatus`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.RUN_COMPLETION_SECRET}`,
+            },
+        });
+        if (!statusResponse.ok) {
+            throw new Error(
+                `Run status check failed (${statusResponse.status}): ${await statusResponse.text()}`
+            );
+        }
+        const runStatus = await statusResponse.json();
+        if (runStatus.completed === true) {
+            console.log(`Today's video is already complete. Skipping publish scripts.`);
+            return;
+        }
+
         console.log(`☁️ Uploading media and updating Firestore...`);
         const cloudflareResult = await execPromise(
             `node Publish-Scripts/publish-cloudflare.js "${dateStr}"`
@@ -202,6 +223,21 @@ async function processPostVideo(videoPath, dateStr) {
         );
         process.stdout.write(youtubeResult.stdout);
         process.stderr.write(youtubeResult.stderr);
+
+        const completionResponse = await fetch(`${completionWorkerUrl}/complete`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.RUN_COMPLETION_SECRET}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ date: dateStr.split('-').reverse().join('-'), status: 'success' }),
+        });
+        if (!completionResponse.ok) {
+            throw new Error(
+                `Completion acknowledgment failed (${completionResponse.status}): ${await completionResponse.text()}`
+            );
+        }
+        console.log('Recorded successful completion for today in Cloudflare KV.');
 
     } catch (err) {
         console.error(`❌ Post-processing Error:`, err.message);

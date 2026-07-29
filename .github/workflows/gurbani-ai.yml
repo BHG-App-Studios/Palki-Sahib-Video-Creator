@@ -28,6 +28,7 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      RUN_COMPLETION_SECRET: ${{ secrets.RUN_COMPLETION_SECRET }}
 
     steps:
       - name: Check out repository
@@ -68,7 +69,8 @@ jobs:
             "FIREBASE_PRIVATE_KEY",
             "YOUTUBE_CLIENT_ID",
             "YOUTUBE_CLIENT_SECRET",
-            "YOUTUBE_REFRESH_TOKEN"
+            "YOUTUBE_REFRESH_TOKEN",
+            "RUN_COMPLETION_SECRET"
           )) {
             if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$secretName").Value)) {
               throw "Missing GitHub Actions secret: $secretName"

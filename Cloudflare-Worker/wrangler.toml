@@ -1,0 +1,16 @@
+name = "palki-sahib-video-creator-trigger"
+main = "src/index.js"
+compatibility_date = "2026-07-29"
+
+[[kv_namespaces]]
+binding = "RUN_STATUS_KV"
+id = "PASTE_CLOUDFLARE_KV_NAMESPACE_ID_HERE"
+
+[triggers]
+crons = [
+    "20 23 * * *",
+    "0 0 * * *",
+    "30 0 * * *",
+    "0 1 * * *",
+    "30 1 * * *",
+]
