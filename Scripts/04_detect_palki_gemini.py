@@ -26,7 +26,8 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 FRAMES_FOLDER = BASE_DIR / "Extracted-Frames"
 SAMPLES_FOLDER = BASE_DIR / "Samples"
 RESPONSE_FOLDER = BASE_DIR / "AI-Response"
-RESPONSE_FILE = RESPONSE_FOLDER / "response.json"
+START_RESPONSE_FILE = RESPONSE_FOLDER / "start_frame.json"
+END_RESPONSE_FILE = RESPONSE_FOLDER / "end_frame.json"
 
 GEMINI_API_KEY_FREE = (
     os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -48,7 +49,7 @@ ALL_MODELS_RETRY_DELAY_SECONDS = 30
 
 # ----------------------------------------
 
-PROMPT = """You are an expert computer vision assistant.
+START_PROMPT = """You are an expert computer vision assistant.
 
 Your job is to inspect a sequence of extracted video frames from the official SGPC Harmandir Sahib livestream.
 
@@ -175,7 +176,41 @@ If nothing is found
 Do not return any other text."""
 
 
-class MatchResult(BaseModel):
+END_PROMPT = """You are an expert computer vision assistant.
+
+Your job is to inspect a sequence of extracted video frames from the official
+SGPC Harmandir Sahib livestream and find the FIRST frame where the Palki Sahib
+procession has ended.
+
+The procession ends when Baba Ji has carried Sri Guru Granth Sahib Ji away and
+the camera has changed away from the Palki Sahib event. This can be an empty
+Darbar Sahib view, the sangat, kirtan, or another unrelated camera scene.
+
+The supplied frames begin after the procession has already started. Inspect
+them in chronological order and return ONLY the earliest frame that clearly
+shows the event is over. Do not select a frame where the Palki Sahib, Baba Ji
+carrying Sri Guru Granth Sahib Ji, or the active ceremonial procession is still
+visible.
+
+Frames are named by timestamp. Never sort them alphabetically.
+
+Return ONLY this JSON:
+{
+    "match_found": true,
+    "frame": "05_35_00.png",
+    "confidence": 99,
+    "reason": "The Palki Sahib procession has ended and the camera has changed to an unrelated scene."
+}
+
+If no reliable end frame appears in the supplied frames, return:
+{
+    "match_found": false
+}
+
+Do not return any other text."""
+
+
+class FrameMatchResult(BaseModel):
     match_found: bool
     frame: str | None = None
     confidence: int | None = None
@@ -232,15 +267,15 @@ def image_part(image_path):
     )
 
 
-def save_response(response_data):
+def save_response(response_file, response_data):
     RESPONSE_FOLDER.mkdir(parents=True, exist_ok=True)
     response_json = json.dumps(response_data, indent=4)
-    RESPONSE_FILE.write_text(response_json + "\n", encoding="utf-8")
+    response_file.write_text(response_json + "\n", encoding="utf-8")
     print(response_json)
 
 
-def build_contents(sample_parts, frame_batch):
-    contents = [PROMPT]
+def build_contents(prompt, sample_parts, frame_batch):
+    contents = [prompt]
 
     for sample_name, sample_image in sample_parts:
         contents.append(f"POSITIVE SAMPLE IMAGE: {sample_name}")
@@ -268,11 +303,13 @@ def try_model_chain(client, key_label, contents, fallback_round):
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=MatchResult,
+                    response_schema=FrameMatchResult,
                 ),
             )
 
-            return MatchResult.model_validate(json.loads(response.text)), None
+            return FrameMatchResult.model_validate(
+                json.loads(response.text)
+            ), None
         except Exception as error:
             errors.append(f"{model_name}: {error}")
 
@@ -323,6 +360,48 @@ def call_gemini(clients, active_key_index, contents):
         fallback_round += 1
 
 
+def find_first_matching_frame(
+    clients,
+    active_key_index,
+    sample_parts,
+    frame_paths,
+    prompt,
+    label,
+):
+    total_batches = (len(frame_paths) + BATCH_SIZE - 1) // BATCH_SIZE
+
+    for batch_number, batch_start in enumerate(
+        range(0, len(frame_paths), BATCH_SIZE),
+        start=1,
+    ):
+        frame_batch = frame_paths[batch_start : batch_start + BATCH_SIZE]
+        first_name = frame_batch[0].name
+        last_name = frame_batch[-1].name
+
+        print(
+            f"Checking {label} batch {batch_number}/{total_batches}: "
+            f"{first_name} to {last_name}",
+            file=sys.stderr,
+        )
+
+        result, active_key_index = call_gemini(
+            clients,
+            active_key_index,
+            build_contents(prompt, sample_parts, frame_batch),
+        )
+        batch_filenames = {frame_path.name for frame_path in frame_batch}
+
+        if (
+            result.match_found
+            and result.frame in batch_filenames
+            and result.confidence is not None
+            and result.confidence >= MINIMUM_CONFIDENCE
+        ):
+            return result, active_key_index
+
+    return None, active_key_index
+
+
 def main():
     if not GEMINI_API_KEY_FREE and not GEMINI_API_KEY_PAID:
         raise RuntimeError(
@@ -360,46 +439,52 @@ def main():
         )
 
     active_key_index = 0
-    total_batches = (len(frame_paths) + BATCH_SIZE - 1) // BATCH_SIZE
+    start_result, active_key_index = find_first_matching_frame(
+        clients,
+        active_key_index,
+        sample_parts,
+        frame_paths,
+        START_PROMPT,
+        "start frame",
+    )
+    if start_result is None:
+        save_response(START_RESPONSE_FILE, {"start_match_found": False})
+        return 0
 
-    for batch_number, batch_start in enumerate(
-        range(0, len(frame_paths), BATCH_SIZE),
-        start=1,
-    ):
-        frame_batch = frame_paths[batch_start : batch_start + BATCH_SIZE]
-        first_name = frame_batch[0].name
-        last_name = frame_batch[-1].name
+    save_response(
+        START_RESPONSE_FILE,
+        {
+            "start_match_found": True,
+            "start_frame": start_result.frame,
+            "start_confidence": start_result.confidence,
+            "start_reason": start_result.reason,
+        },
+    )
 
-        print(
-            f"Checking batch {batch_number}/{total_batches}: "
-            f"{first_name} to {last_name}",
-            file=sys.stderr,
-        )
+    start_frame_index = next(
+        index
+        for index, frame_path in enumerate(frame_paths)
+        if frame_path.name == start_result.frame
+    )
+    end_candidates = frame_paths[start_frame_index + 1 :]
+    end_result, active_key_index = find_first_matching_frame(
+        clients,
+        active_key_index,
+        sample_parts,
+        end_candidates,
+        END_PROMPT,
+        "end frame",
+    )
 
-        result, active_key_index = call_gemini(
-            clients,
-            active_key_index,
-            build_contents(sample_parts, frame_batch),
-        )
-        batch_filenames = {frame_path.name for frame_path in frame_batch}
-
-        if (
-            result.match_found
-            and result.frame in batch_filenames
-            and result.confidence is not None
-            and result.confidence > MINIMUM_CONFIDENCE
-        ):
-            save_response(
-                {
-                    "match_found": True,
-                    "frame": result.frame,
-                    "confidence": result.confidence,
-                    "reason": result.reason,
-                }
-            )
-            return 0
-
-    save_response({"match_found": False})
+    save_response(
+        END_RESPONSE_FILE,
+        {
+            "end_match_found": end_result is not None,
+            "end_frame": end_result.frame if end_result else None,
+            "end_confidence": end_result.confidence if end_result else None,
+            "end_reason": end_result.reason if end_result else None,
+        }
+    )
     return 0
 
 

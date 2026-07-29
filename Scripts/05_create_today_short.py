@@ -8,7 +8,8 @@ from pathlib import Path
 # ---------------- CONFIG ----------------
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-RESPONSE_FILE = BASE_DIR / "AI-Response" / "response.json"
+START_RESPONSE_FILE = BASE_DIR / "AI-Response" / "start_frame.json"
+END_RESPONSE_FILE = BASE_DIR / "AI-Response" / "end_frame.json"
 VIDEO_FILE = BASE_DIR / "30min-Clip" / "30min_clip.mp4"
 SHABADS_FOLDER = BASE_DIR / "Random-Shabads"
 OUTPUT_FOLDER = BASE_DIR / "Today-Short"
@@ -22,17 +23,11 @@ OUTPUT_HEIGHT = 720
 # ----------------------------------------
 
 
-def read_start_time():
-    if not RESPONSE_FILE.is_file():
-        raise RuntimeError(f"AI response file not found: {RESPONSE_FILE}")
-
-    response = json.loads(RESPONSE_FILE.read_text(encoding="utf-8"))
-    if response.get("match_found") is not True:
-        raise RuntimeError("AI response does not contain a reliable match.")
-
-    frame_name = response.get("frame")
+def frame_to_seconds(frame_name, field_name):
     if not isinstance(frame_name, str):
-        raise RuntimeError("AI response does not contain a valid frame name.")
+        raise RuntimeError(
+            f"AI response does not contain a valid {field_name}."
+        )
 
     match = re.fullmatch(
         r"(?P<minutes>\d+)_(?P<seconds>\d{2})_(?P<milliseconds>\d{2})\.png",
@@ -46,9 +41,44 @@ def read_start_time():
     minutes = int(match.group("minutes"))
     seconds = int(match.group("seconds"))
     milliseconds = int(match.group("milliseconds"))
-    total_seconds = minutes * 60 + seconds + milliseconds / 100
+    return minutes * 60 + seconds + milliseconds / 100
 
-    return total_seconds, frame_name
+
+def read_event_window():
+    if not START_RESPONSE_FILE.is_file():
+        raise RuntimeError(
+            f"AI start response file not found: {START_RESPONSE_FILE}"
+        )
+    if not END_RESPONSE_FILE.is_file():
+        raise RuntimeError(
+            f"AI end response file not found: {END_RESPONSE_FILE}"
+        )
+
+    start_response = json.loads(
+        START_RESPONSE_FILE.read_text(encoding="utf-8")
+    )
+    end_response = json.loads(
+        END_RESPONSE_FILE.read_text(encoding="utf-8")
+    )
+    if start_response.get("start_match_found") is not True:
+        raise RuntimeError("AI response does not contain a reliable start frame.")
+    if end_response.get("end_match_found") is not True:
+        raise RuntimeError("AI response does not contain a reliable end frame.")
+
+    start_frame = start_response.get("start_frame")
+    end_frame = end_response.get("end_frame")
+    start_seconds = frame_to_seconds(start_frame, "start frame")
+    end_seconds = frame_to_seconds(end_frame, "end frame")
+
+    if end_seconds <= start_seconds:
+        raise RuntimeError(
+            "AI end frame must occur after the AI start frame."
+        )
+
+    event_duration = end_seconds - start_seconds
+    clip_duration = min(event_duration, CLIP_DURATION_SECONDS)
+
+    return start_seconds, end_seconds, clip_duration, start_frame, end_frame
 
 
 def find_today_shabad():
@@ -63,7 +93,14 @@ def find_today_shabad():
     return shabad_file
 
 
-def create_short(start_seconds, frame_name, shabad_file):
+def create_short(
+    start_seconds,
+    end_seconds,
+    clip_duration,
+    start_frame,
+    end_frame,
+    shabad_file,
+):
     if not VIDEO_FILE.is_file():
         raise RuntimeError(f"Source video not found: {VIDEO_FILE}")
 
@@ -71,10 +108,13 @@ def create_short(start_seconds, frame_name, shabad_file):
     date_text = datetime.now(APP_TIMEZONE).strftime("%Y-%m-%d")
     output_file = OUTPUT_FOLDER / f"today_short_{date_text}.mp4"
 
-    print(f"AI start frame: {frame_name}")
+    print(f"AI start frame: {start_frame}")
     print(f"Start time: {start_seconds:.2f} seconds")
+    print(f"AI end frame: {end_frame}")
+    print(f"End time: {end_seconds:.2f} seconds")
+    print(f"Final duration: {clip_duration:.2f} seconds")
     print(f"Today's shabad: {shabad_file.name}")
-    print("Creating 59-second 960x720 short...")
+    print("Creating event-based 960x720 short...")
 
     video_filter = (
         f"crop=iw:ih-{BOTTOM_CROP_PIXELS}:0:0,"
@@ -94,12 +134,10 @@ def create_short(start_seconds, frame_name, shabad_file):
         str(start_seconds),
         "-i",
         str(VIDEO_FILE),
-        "-stream_loop",
-        "-1",
         "-i",
         str(shabad_file),
         "-t",
-        str(CLIP_DURATION_SECONDS),
+        str(clip_duration),
         "-filter:v",
         video_filter,
         "-map",
@@ -130,9 +168,22 @@ def create_short(start_seconds, frame_name, shabad_file):
 
 
 def main():
-    start_seconds, frame_name = read_start_time()
+    (
+        start_seconds,
+        end_seconds,
+        clip_duration,
+        start_frame,
+        end_frame,
+    ) = read_event_window()
     shabad_file = find_today_shabad()
-    create_short(start_seconds, frame_name, shabad_file)
+    create_short(
+        start_seconds,
+        end_seconds,
+        clip_duration,
+        start_frame,
+        end_frame,
+        shabad_file,
+    )
     return 0
 
 
