@@ -48,7 +48,7 @@ async function uploadVideo() {
     const longDate = new Intl.DateTimeFormat('en-GB', {
         day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata'
     }).format(new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00Z`));
-    const videoTitle = `✨ ${longDate} Amrit Vela Darshan | Sri Harmandir Sahib Ji | Golden Temple Amritsar 🌼`;
+    const videoTitle = `✨ ${longDate} Amrit Vela Darshan | Sri Harmandir Sahib Ji | Golden Temple Amritsar`;
     const videoDescription = `✨ Today's Amrit Vela Palki Sahib Darshan from Sachkhand Sri Harmandir Sahib Ji (Golden Temple), Amritsar.
 
 📅 Date: ${longDate}
