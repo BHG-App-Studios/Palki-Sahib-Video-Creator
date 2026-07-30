@@ -46,6 +46,10 @@ JPEG_QUALITY = 85
 MODEL_RETRY_DELAY_SECONDS = 2
 ALL_MODELS_RETRY_DELAY_SECONDS = 30
 MAX_FALLBACK_ROUNDS = 5
+# Do not let one stalled Gemini request hold the GitHub Actions job forever.
+# When this limit is reached, the existing fallback chain retries the exact
+# same frame batch with the next model.
+GEMINI_REQUEST_TIMEOUT_MILLISECONDS = 60_000
 
 # ----------------------------------------
 
@@ -361,11 +365,27 @@ def main():
     clients = []
     if GEMINI_API_KEY_FREE:
         clients.append(
-            ("free", genai.Client(api_key=GEMINI_API_KEY_FREE))
+            (
+                "free",
+                genai.Client(
+                    api_key=GEMINI_API_KEY_FREE,
+                    http_options=types.HttpOptions(
+                        timeout=GEMINI_REQUEST_TIMEOUT_MILLISECONDS
+                    ),
+                ),
+            )
         )
     if GEMINI_API_KEY_PAID:
         clients.append(
-            ("paid", genai.Client(api_key=GEMINI_API_KEY_PAID))
+            (
+                "paid",
+                genai.Client(
+                    api_key=GEMINI_API_KEY_PAID,
+                    http_options=types.HttpOptions(
+                        timeout=GEMINI_REQUEST_TIMEOUT_MILLISECONDS
+                    ),
+                ),
+            )
         )
 
     active_key_index = 0
