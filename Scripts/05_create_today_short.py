@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -49,6 +50,13 @@ def read_start_time():
     total_seconds = minutes * 60 + seconds + milliseconds / 100
 
     return total_seconds, frame_name
+
+
+def pipeline_today():
+    pipeline_date = os.getenv("PIPELINE_DATE")
+    if pipeline_date:
+        return datetime.strptime(pipeline_date, "%Y-%m-%d").replace(tzinfo=APP_TIMEZONE)
+    return datetime.now(APP_TIMEZONE)
 
 
 def find_today_shabad(today):
@@ -132,7 +140,7 @@ def create_short(start_seconds, frame_name, shabad_file, today):
 def main():
     # Capture one IST date for this run so the background/audio asset and
     # output name cannot disagree if the job crosses midnight in India.
-    today = datetime.now(APP_TIMEZONE)
+    today = pipeline_today()
     start_seconds, frame_name = read_start_time()
     shabad_file = find_today_shabad(today)
     create_short(start_seconds, frame_name, shabad_file, today)

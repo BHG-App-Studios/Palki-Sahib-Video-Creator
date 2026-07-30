@@ -1,8 +1,10 @@
+import os
 import subprocess
 import time
 import sys
 import logging
 import shutil
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Configure logging for production-ready output
@@ -39,6 +41,7 @@ FOLDERS_TO_EMPTY = [
 
 RETRY_DELAY_SECONDS = 15  # Delay before retrying a failed script
 MAX_SCRIPT_ATTEMPTS = 5
+IST = timezone(timedelta(hours=5, minutes=30))
 
 def run_script_with_retries(script_name):
     """
@@ -105,6 +108,10 @@ def empty_directories():
     logging.info("Cleanup complete.\n")
 
 def main():
+    # Keep every stage on the same India calendar date, even if a long run
+    # crosses midnight while Gemini/FFmpeg/publishing are still running.
+    os.environ["PIPELINE_DATE"] = datetime.now(IST).strftime("%Y-%m-%d")
+    logging.info(f"Pinned pipeline date (IST): {os.environ['PIPELINE_DATE']}")
     logging.info("Starting the Gurbani AI master automation pipeline...\n")
     
     empty_directories()

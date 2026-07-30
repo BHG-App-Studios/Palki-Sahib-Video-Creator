@@ -112,7 +112,11 @@ async function createOverlays(tempPaths, details) {
 }
 
 async function createVideo() {
-    const { dayOfMonth, isoDate, formattedDate, englishDate, weekday } = getIndiaDateDetails();
+    const pipelineDate = process.env.PIPELINE_DATE;
+    const dateReference = pipelineDate
+        ? new Date(`${pipelineDate}T12:00:00Z`)
+        : new Date();
+    const { dayOfMonth, isoDate, formattedDate, englishDate, weekday } = getIndiaDateDetails(dateReference);
     const liveClock = getEventTimeIst();
     const foregroundPath = path.join(videosDir, `today_short_${isoDate}.mp4`);
     const backgroundPath = path.join(designsDir, `${Number(dayOfMonth)}.mp4`);
@@ -197,7 +201,11 @@ async function processPostVideo(videoPath, dateStr) {
 
     if (!process.env.RUN_COMPLETION_SECRET) throw new Error('RUN_COMPLETION_SECRET is missing.');
     const headers = { Authorization: `Bearer ${process.env.RUN_COMPLETION_SECRET}` };
-    const statusResponse = await fetch(`${completionWorkerUrl}/checkRunStatus`, { method: 'POST', headers });
+    const statusResponse = await fetch(`${completionWorkerUrl}/checkRunStatus`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateStr.split('-').reverse().join('-') }),
+    });
     if (!statusResponse.ok) throw new Error(`Run status check failed (${statusResponse.status}): ${await statusResponse.text()}`);
     if ((await statusResponse.json()).completed === true) {
         console.log("Today's video is already complete. Skipping publish scripts.");

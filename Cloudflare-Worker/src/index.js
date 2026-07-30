@@ -31,6 +31,22 @@ function currentIstDate() {
     return `${values.year}-${values.month}-${values.day}`;
 }
 
+function previousIstDate() {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(now);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const previous = new Date(Date.UTC(
+        Number(values.year), Number(values.month) - 1, Number(values.day) - 1
+    ));
+    return previous.toISOString().slice(0, 10);
+}
+
+function isAcceptableCompletionDate(date) {
+    return date === currentIstDate() || date === previousIstDate();
+}
+
 function completionKey(date) {
     return `gurbani-ai:completed:${date}`;
 }
@@ -113,9 +129,9 @@ async function markCompletion(request, env) {
     }
 
     const today = currentIstDate();
-    if (payload.status !== 'success' || payload.date !== today) {
+    if (payload.status !== 'success' || !isAcceptableCompletionDate(payload.date)) {
         return Response.json(
-            { error: 'Only a successful completion for today IST can be recorded.', today },
+            { error: 'Only a successful completion for today or the previous IST date can be recorded.', today },
             { status: 400 }
         );
     }
@@ -133,8 +149,15 @@ async function checkRunStatus(request, env) {
     if (!authorized(request, env.RUN_COMPLETION_SECRET)) {
         return Response.json({ error: 'Unauthorized.' }, { status: 401 });
     }
-    const date = currentIstDate();
-    const completed = await hasCompletedToday(env);
+    let requestedDate = currentIstDate();
+    try {
+        const payload = await request.json();
+        if (payload?.date && isAcceptableCompletionDate(payload.date)) requestedDate = payload.date;
+    } catch {
+        // Empty request body keeps the normal today-status behaviour.
+    }
+    const date = requestedDate;
+    const completed = (await env.RUN_STATUS_KV.get(completionKey(date))) !== null;
     return Response.json({ date, completed }, { status: 200 });
 }
 
