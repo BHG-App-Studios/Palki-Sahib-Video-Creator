@@ -89,7 +89,7 @@ Amritsar, Punjab, India
                 snippet: {
                     title: videoTitle,
                     description: videoDescription,
-                    tags: ['hukamnama', 'gurbani', 'sikhism', 'guru ram das', 'golden temple', 'amritsar', 'palki sahib'],
+                    tags: ['Amrit Vela Darshan', 'Amrit Vela', 'Amrit Vela Kirtan', 'Morning Darshan', 'Daily Darshan', 'Palki Sahib', 'Palki Sahib Darshan', 'Palki Sahib Ceremony', 'Daily Hukamnama', 'Hukamnama Sahib', 'Today Hukamnama', 'Hukamnama Sahib Today', 'Sri Harmandir Sahib', 'Harmandir Sahib', 'Darbar Sahib', 'Golden Temple', 'Golden Temple Amritsar', 'Golden Temple Live', 'Gurbani', 'Gurbani Kirtan', 'Guru Ram Das Ji', 'Live Kirtan', 'Sikh Temple', 'Amritsar', 'Darshan Today', 'ਪਾਲਕੀ ਸਾਹਿਬ', 'ਹੁਕਮਨਾਮਾ', 'ਦਰਬਾਰ ਸਾਹਿਬ', 'ਹਰਿਮੰਦਰ ਸਾਹਿਬ'],
                     categoryId: '22', // Category: People & Blogs
                 },
                 status: {
