@@ -25,6 +25,7 @@ SCRIPTS_TO_RUN = [
     "03_extract_images.py",
     "04_detect_palki_gemini.py",
     "05_create_today_short.py",
+    "06_calculate_event_time.py",
     "create_video.js"
 ]
 

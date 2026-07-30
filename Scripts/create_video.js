@@ -14,6 +14,24 @@ const WIDTH = 1080;
 const HEIGHT = 1600;
 const VIDEO_DURATION = Number(process.env.VIDEO_DURATION_SECONDS || 59);
 
+function getEventTimeIst() {
+    const responsePath = path.join(baseDir, 'AI-Response', 'response.json');
+    if (!fs.existsSync(responsePath)) {
+        throw new Error(`Event-time data is missing: ${responsePath}`);
+    }
+
+    let response;
+    try {
+        response = JSON.parse(fs.readFileSync(responsePath, 'utf8'));
+    } catch (error) {
+        throw new Error(`Could not read event-time data: ${error.message}`);
+    }
+    if (typeof response.event_time_ist !== 'string' || !response.event_time_ist) {
+        throw new Error('Calculated IST event time is missing from the Gemini response.');
+    }
+    return response.event_time_ist;
+}
+
 function getIndiaDateDetails(now = new Date()) {
     // Always extract calendar fields directly in India Standard Time (IST).
     // Do not parse a locale-formatted date string: parsing uses the runner's
@@ -94,7 +112,8 @@ async function createOverlays(tempPaths, details) {
 }
 
 async function createVideo() {
-    const { dayOfMonth, isoDate, formattedDate, englishDate, weekday, liveClock } = getIndiaDateDetails();
+    const { dayOfMonth, isoDate, formattedDate, englishDate, weekday } = getIndiaDateDetails();
+    const liveClock = getEventTimeIst();
     const foregroundPath = path.join(videosDir, `today_short_${isoDate}.mp4`);
     const backgroundPath = path.join(designsDir, `${Number(dayOfMonth)}.mp4`);
 
