@@ -79,7 +79,7 @@ def frame_offset(frame_name):
 def format_ist_time(value):
     hour = value.hour % 12 or 12
     period = "AM" if value.hour < 12 else "PM"
-    return f"{hour}:{value.minute:02d} {period} IST"
+    return f"{hour:02d}:{value.minute:02d} {period}"
 
 
 def main():
