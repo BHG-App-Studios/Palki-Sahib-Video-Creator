@@ -104,7 +104,10 @@ async function publish() {
 
         const dateParts = dateStr.split('-');
         const prettyDate = `${dateParts[0]}/${dateParts[1]}/${dateParts[2]}`;
-        const finalCaption = `✨ ${prettyDate} Amrit Vela Darshan | Sri Harmandir Sahib Ji 🌼`;
+        const longDate = new Intl.DateTimeFormat('en-GB', {
+            day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata'
+        }).format(new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00Z`));
+        const finalCaption = `✨ ${longDate} Amrit Vela Darshan | Sri Harmandir Sahib Ji | Golden Temple Amritsar 🌼`;
 
         // Exact schema matching the requested structure
         const postData = {

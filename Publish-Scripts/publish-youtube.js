@@ -45,12 +45,42 @@ async function uploadVideo() {
     // Create a user-friendly title and description from the date
     const dateParts = dateStr.split('-');
     const prettyDate = `${dateParts[0]}/${dateParts[1]}/${dateParts[2]}`;
-    const videoTitle = `✨ ${prettyDate} Amrit Vela Darshan | Guru Granth Sahib Ji Kirpa 🌼 #Gurbani #Waheguru`;
-    const videoDescription = `ਵਾਹਿਗੁਰੂ ਜੀ ਕਾ ਖਾਲਸਾ ਵਾਹਿਗੁਰੂ ਜੀ ਕੀ ਫਤਿਹ ||
+    const longDate = new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata'
+    }).format(new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00Z`));
+    const videoTitle = `✨ ${longDate} Amrit Vela Darshan | Sri Harmandir Sahib Ji | Golden Temple Amritsar 🌼`;
+    const videoDescription = `✨ Today's Amrit Vela Palki Sahib Darshan from Sachkhand Sri Harmandir Sahib Ji (Golden Temple), Amritsar.
 
-Daily Hukamnama Palki Sahib || Date: ${prettyDate} || Dhan Guru Ram Das Sahib Ji Darbar Sahib || Sri Harmandir Sahib Ji, Amritsar.
+📅 Date: ${longDate}
 
-#hukamnama #gurbani #gurudwara #harmandirsahib #sikhism #gururamdasji`;
+Watch today's divine Amrit Vela Darshan and Palki Sahib Darshan from Sachkhand Sri Harmandir Sahib Ji (Golden Temple), Amritsar, Punjab. Experience the peaceful Gurbani atmosphere and begin your day with Waheguru Ji's blessings.
+
+📍 Location:
+Sachkhand Sri Harmandir Sahib Ji (Dhan Guru Ram Das Sahib Ji Darbar Sahib)
+Amritsar, Punjab, India
+
+🙏 Daily on this channel:
+• Amrit Vela Darshan
+• Palki Sahib Darshan
+• Daily Hukamnama Sahib
+• Gurbani Kirtan
+• Sri Harmandir Sahib Darshan
+• Sikh Spiritual Videos
+
+🙏 Waheguru Ji Ka Khalsa
+🙏 Waheguru Ji Ki Fateh
+
+#AmritVela
+#PalkiSahib
+#SriHarmandirSahib
+#GoldenTemple
+#Gurbani
+#Hukamnama
+#Waheguru
+#Kirtan
+#Amritsar
+#Sikh
+#Shorts`;
 
     try {
         const res = await youtube.videos.insert({
