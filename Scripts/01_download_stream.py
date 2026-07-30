@@ -38,7 +38,7 @@ def configure_utf8_console():
 
 def get_live_video_url():
     print("Using hardcoded YouTube URL for testing.")
-    return "https://www.youtube.com/watch?v=0goh2R83VBA"
+    return "https://www.youtube.com/watch?v=kTmZkXTMmmc"
 
 
 def get_video_stream_url(video_url):
