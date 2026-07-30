@@ -100,7 +100,7 @@ async function publish() {
         const viewerBaseUrl = "https://gurbani-kirtan-darbar.iemgurpreets.workers.dev?filename=";
 
         // Generate a document reference FIRST so we can use its ID inside the document
-        const postRef = db.collection('pending_posts').doc();
+        const postRef = db.collection('posts').doc();
 
         const dateParts = dateStr.split('-');
         const prettyDate = `${dateParts[0]}/${dateParts[1]}/${dateParts[2]}`;

@@ -93,7 +93,7 @@ Amritsar, Punjab, India
                     categoryId: '22', // Category: People & Blogs
                 },
                 status: {
-                    privacyStatus: 'private', // Change to 'unlisted' for initial testing if needed
+                    privacyStatus: 'public', // Change to 'unlisted' for initial testing if needed
                     selfDeclaredMadeForKids: false,
                 },
             },
