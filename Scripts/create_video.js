@@ -14,10 +14,37 @@ const WIDTH = 1080;
 const HEIGHT = 1600;
 const VIDEO_DURATION = Number(process.env.VIDEO_DURATION_SECONDS || 59);
 
-function getIstDate() {
-    // Constructing from the formatted IST value keeps the daily asset choice
-    // independent of the computer/server timezone.
-    return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+function getIndiaDateDetails(now = new Date()) {
+    // Always extract calendar fields directly in India Standard Time (IST).
+    // Do not parse a locale-formatted date string: parsing uses the runner's
+    // timezone and can move the date/weekday around midnight on GitHub Actions.
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(now);
+    const values = Object.fromEntries(
+        parts
+            .filter(({ type }) => type !== 'literal')
+            .map(({ type, value }) => [type, value])
+    );
+    const isoDate = `${values.year}-${values.month}-${values.day}`;
+
+    return {
+        dayOfMonth: values.day,
+        isoDate,
+        formattedDate: `${values.day}-${values.month}-${values.year}`,
+        englishDate: new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long', year: 'numeric'
+        }).format(now),
+        weekday: new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Asia/Kolkata', weekday: 'long'
+        }).format(now),
+        liveClock: new Intl.DateTimeFormat('en-IN', {
+            timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true
+        }).format(now).toUpperCase(),
+    };
 }
 
 function escapeHtml(value) {
@@ -67,17 +94,9 @@ async function createOverlays(tempPaths, details) {
 }
 
 async function createVideo() {
-    const d = getIstDate();
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    const isoDate = `${year}-${month}-${day}`;
-    const formattedDate = `${day}-${month}-${year}`;
-    const englishDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long', year: 'numeric' }).format(d);
-    const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'long' }).format(d);
-    const liveClock = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).format(d).toUpperCase();
+    const { dayOfMonth, isoDate, formattedDate, englishDate, weekday, liveClock } = getIndiaDateDetails();
     const foregroundPath = path.join(videosDir, `today_short_${isoDate}.mp4`);
-    const backgroundPath = path.join(designsDir, `${d.getDate()}.mp4`);
+    const backgroundPath = path.join(designsDir, `${Number(dayOfMonth)}.mp4`);
 
     for (const [kind, candidate] of [['foreground', foregroundPath], ['plain background', backgroundPath]]) {
         if (!fs.existsSync(candidate)) throw new Error(`No ${kind} video found: ${candidate}`);

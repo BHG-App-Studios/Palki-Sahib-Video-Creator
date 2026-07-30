@@ -51,8 +51,8 @@ def read_start_time():
     return total_seconds, frame_name
 
 
-def find_today_shabad():
-    day_number = datetime.now(APP_TIMEZONE).day
+def find_today_shabad(today):
+    day_number = today.day
     shabad_file = SHABADS_FOLDER / f"{day_number}.mp3"
 
     if not shabad_file.is_file():
@@ -63,12 +63,12 @@ def find_today_shabad():
     return shabad_file
 
 
-def create_short(start_seconds, frame_name, shabad_file):
+def create_short(start_seconds, frame_name, shabad_file, today):
     if not VIDEO_FILE.is_file():
         raise RuntimeError(f"Source video not found: {VIDEO_FILE}")
 
     OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
-    date_text = datetime.now(APP_TIMEZONE).strftime("%Y-%m-%d")
+    date_text = today.strftime("%Y-%m-%d")
     output_file = OUTPUT_FOLDER / f"today_short_{date_text}.mp4"
 
     print(f"AI start frame: {frame_name}")
@@ -130,9 +130,12 @@ def create_short(start_seconds, frame_name, shabad_file):
 
 
 def main():
+    # Capture one IST date for this run so the background/audio asset and
+    # output name cannot disagree if the job crosses midnight in India.
+    today = datetime.now(APP_TIMEZONE)
     start_seconds, frame_name = read_start_time()
-    shabad_file = find_today_shabad()
-    create_short(start_seconds, frame_name, shabad_file)
+    shabad_file = find_today_shabad(today)
+    create_short(start_seconds, frame_name, shabad_file, today)
     return 0
 
 
