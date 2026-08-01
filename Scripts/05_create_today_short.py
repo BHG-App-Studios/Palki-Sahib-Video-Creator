@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import re
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -11,7 +12,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[1]
 RESPONSE_FILE = BASE_DIR / "AI-Response" / "response.json"
 VIDEO_FILE = BASE_DIR / "30min-Clip" / "30min_clip.mp4"
-SHABADS_FOLDER = BASE_DIR / "Random-Shabads"
+SHABADS_FOLDER = BASE_DIR / "Shabads"
 OUTPUT_FOLDER = BASE_DIR / "Today-Short"
 APP_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 
@@ -61,14 +62,20 @@ def pipeline_today():
 
 def find_today_shabad(today):
     day_number = today.day
-    shabad_file = SHABADS_FOLDER / f"{day_number}.mp3"
+    day_folder = SHABADS_FOLDER / str(day_number)
 
-    if not shabad_file.is_file():
+    if not day_folder.is_dir():
         raise RuntimeError(
-            f"Today's shabad was not found: {shabad_file}"
+            f"Today's shabad folder was not found: {day_folder}"
         )
 
-    return shabad_file
+    shabad_files = sorted(day_folder.glob("*.mp3"))
+    if not shabad_files:
+        raise RuntimeError(
+            f"No shabads found in today's folder: {day_folder}"
+        )
+
+    return random.choice(shabad_files)
 
 
 def create_short(start_seconds, frame_name, shabad_file, today):
