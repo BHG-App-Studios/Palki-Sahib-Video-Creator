@@ -37,8 +37,42 @@ def configure_utf8_console():
 
 
 def get_live_video_url():
-    print("Using hardcoded YouTube URL for testing.")
-    return "https://www.youtube.com/watch?v=DlG7T7K6yg0"
+
+    if not API_KEY:
+        raise RuntimeError(
+            "YT_API_KEY environment variable not found. "
+            "Configure it before running the pipeline."
+        )
+
+    response = requests.get(
+        "https://www.googleapis.com/youtube/v3/search",
+        params={
+            "part": "snippet",
+            "channelId": CHANNEL_ID,
+            "eventType": "live",
+            "type": "video",
+            "key": API_KEY,
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    if "error" in data:
+        raise RuntimeError(f"YouTube API error: {data['error']['message']}")
+
+    for item in data.get("items", []):
+        title = item["snippet"]["title"]
+        video_id = item["id"]["videoId"]
+        print(f"Found live video: {title} (ID: {video_id})")
+
+        if any(
+            phrase.lower() in title.lower()
+            for phrase in ("Official SGPC LIVE", "Sachkhand Sri Harmandir Sahib")
+        ):
+            return f"https://www.youtube.com/watch?v={video_id}"
+
+    return None
 
 
 def get_video_stream_url(video_url):
@@ -266,31 +300,15 @@ def download_video(video_url):
     video_part = DOWNLOAD_DIR / f".{video_id}.video.part"
 
     print(
-        f"\nDownloading the FULL stream for testing: {video_url}"
+        f"\nFast-downloading the FIRST {DOWNLOAD_SECONDS // 60} minutes "
+        f"of the stream: {video_url}"
     )
 
     try:
-        print("Downloading FULL video using yt-dlp...")
-        subprocess.run(
-            [
-                DOWNLOADER,
-                "--ignore-config",
-                "--cookies-from-browser",
-                "firefox",
-                "--js-runtimes",
-                "node",
-                "--remote-components",
-                "ejs:github",
-                "-f",
-                FORMAT_SELECTOR,
-                "-o",
-                str(video_part),
-                video_url,
-            ],
-            check=True,
-        )
+        video_stream_url = get_video_stream_url(video_url)
+        download_fragments(video_stream_url, video_part, "video")
 
-        print("Processing full video (stripping audio)...")
+        print(f"Trimming video to exactly {duration_minutes} minutes...")
         subprocess.run(
             [
                 "ffmpeg",
@@ -300,6 +318,8 @@ def download_video(video_url):
                 "error",
                 "-i",
                 str(video_part),
+                "-t",
+                str(DOWNLOAD_SECONDS),
                 "-map",
                 "0:v:0",
                 "-an",
