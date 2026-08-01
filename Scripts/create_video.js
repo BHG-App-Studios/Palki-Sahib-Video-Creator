@@ -140,7 +140,7 @@ async function createVideo() {
         });
 
         // Ping-pong looping avoids a noticeable jump when a short daily background repeats.
-        await execPromise(`ffmpeg -y -i "${backgroundPath}" -filter_complex "[0:v]reverse[r];[0:v][r]concat=n=2:v=1:a=0,format=yuv420p[outv]" -map "[outv]" -an -c:v libx264 -preset ultrafast -crf 18 "${tempPaths.pingPong}"`);
+        await execPromise(`ffmpeg -y -i "${backgroundPath}" -filter_complex "[0:v]reverse[r];[0:v][r]concat=n=2:v=1:a=0,format=yuv420p[outv]" -map "[outv]" -an -c:v libx264 -preset veryfast -crf 14 "${tempPaths.pingPong}"`);
 
         const filter = [
             `[0:v]scale=w='iw*(1.02+0.02*t/${VIDEO_DURATION})':h='ih*(1.02+0.02*t/${VIDEO_DURATION})':eval=frame,crop=${WIDTH}:${HEIGHT}:(in_w-out_w)/2:(in_h-out_h)/2,setsar=1[bg]`,
@@ -160,7 +160,7 @@ async function createVideo() {
             `[1:a]showwaves=s=210x24:mode=cline:colors=0xEAC65E@0.95,format=rgba[wave]`,
             `[info][wave]overlay=435:1440[outv]`
         ].join(';');
-        const command = `ffmpeg -y -stream_loop -1 -i "${tempPaths.pingPong}" -i "${foregroundPath}" -loop 1 -i "${tempPaths.title}" -loop 1 -i "${tempPaths.info}" -loop 1 -i "${tempPaths.ikOnkar}" -filter_complex "${filter}" -map "[outv]" -map 1:a? -t ${VIDEO_DURATION} -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart "${outputPath}"`;
+        const command = `ffmpeg -y -stream_loop -1 -i "${tempPaths.pingPong}" -i "${foregroundPath}" -loop 1 -i "${tempPaths.title}" -loop 1 -i "${tempPaths.info}" -loop 1 -i "${tempPaths.ikOnkar}" -filter_complex "${filter}" -map "[outv]" -map 1:a? -t ${VIDEO_DURATION} -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart "${outputPath}"`;
         await execPromise(command, { maxBuffer: 1024 * 1024 * 10 });
         console.log(`Success: ${outputPath}`);
         await processPostVideo(outputPath, formattedDate);
@@ -189,12 +189,12 @@ async function processPostVideo(videoPath, dateStr) {
     console.log('Converting to HLS...');
     const hlsOutput = path.join(hlsDir, 'index.m3u8').replace(/\\/g, '/');
     const hlsSegment = path.join(hlsDir, 'index%03d.ts').replace(/\\/g, '/');
-    await execPromise(`ffmpeg -y -i "${videoPath}" -vf "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(ih,iw),min(1280,ih),-2)',fps=30" -c:v libx264 -preset veryfast -crf 23 -g 180 -keyint_min 180 -sc_threshold 0 -c:a aac -b:a 128k -hls_time 6 -hls_playlist_type vod -hls_list_size 0 -hls_segment_filename "${hlsSegment}" "${hlsOutput}"`);
+    await execPromise(`ffmpeg -y -i "${videoPath}" -vf "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(ih,iw),min(1280,ih),-2)',fps=30" -c:v libx264 -preset fast -crf 20 -g 180 -keyint_min 180 -sc_threshold 0 -c:a aac -b:a 192k -hls_time 6 -hls_playlist_type vod -hls_list_size 0 -hls_segment_filename "${hlsSegment}" "${hlsOutput}"`);
     fs.writeFileSync(hlsOutput, fs.readFileSync(hlsOutput, 'utf8').replace(/index/g, `${baseUrl}/index`));
 
     if (fs.existsSync(logoPath)) {
         console.log('Creating branded MP4...');
-        await execPromise(`ffmpeg -y -i "${videoPath}" -i "${logoPath}" -filter_complex "[0:v]scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(ih,iw),min(1280,ih),-2)'[v]; [1:v]scale=iw*0.17:-1[logo]; [v][logo]overlay=x=W-w-(W*0.03):y=H*0.03" -c:v libx264 -preset veryfast -crf 23 -c:a aac -b:a 128k -movflags +faststart "${brandedPath}"`);
+        await execPromise(`ffmpeg -y -i "${videoPath}" -i "${logoPath}" -filter_complex "[0:v]scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(ih,iw),min(1280,ih),-2)'[v]; [1:v]scale=iw*0.17:-1[logo]; [v][logo]overlay=x=W-w-(W*0.03):y=H*0.03" -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 192k -movflags +faststart "${brandedPath}"`);
     } else {
         console.log("logo.png not found; branded MP4 creation skipped.");
     }
