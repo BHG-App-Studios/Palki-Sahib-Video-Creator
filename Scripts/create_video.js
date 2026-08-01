@@ -199,6 +199,11 @@ async function processPostVideo(videoPath, dateStr) {
         console.log("logo.png not found; branded MP4 creation skipped.");
     }
 
+    if (process.env.SKIP_PUBLISH === 'true') {
+        console.log('SKIP_PUBLISH is set; skipping Cloudflare/YouTube publish. Local media (final video, branded MP4, thumbnail, HLS) generated for testing.');
+        return;
+    }
+
     if (!process.env.RUN_COMPLETION_SECRET) throw new Error('RUN_COMPLETION_SECRET is missing.');
     const headers = { Authorization: `Bearer ${process.env.RUN_COMPLETION_SECRET}` };
     const statusResponse = await fetch(`${completionWorkerUrl}/checkRunStatus`, {

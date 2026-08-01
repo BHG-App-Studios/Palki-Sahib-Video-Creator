@@ -29,6 +29,8 @@ jobs:
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       RUN_COMPLETION_SECRET: ${{ secrets.RUN_COMPLETION_SECRET }}
+      # Testing: skip Cloudflare/YouTube publishing; upload final video as an artifact instead.
+      SKIP_PUBLISH: "true"
 
     steps:
       - name: Check out repository
@@ -113,8 +115,20 @@ jobs:
         run: python main.py
 
       - name: Notify admin app of failed run
-        if: ${{ failure() }}
+        if: ${{ failure() && env.SKIP_PUBLISH != 'true' }}
         run: node Publish-Scripts/notify-admin-failure.js
+
+      - name: Upload final video artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: final-video
+          path: |
+            Final_Hukamnama_*.mp4
+            output_mp4/branded_*.mp4
+            thumbnail_*.jpg
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload Firefox verification screenshot
         if: ${{ success() }}
