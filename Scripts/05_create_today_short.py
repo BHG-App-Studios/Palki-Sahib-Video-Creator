@@ -124,7 +124,7 @@ def create_short(start_seconds, frame_name, shabad_file, today):
         "-preset",
         "medium",
         "-crf",
-        "18",
+        "21",
         "-pix_fmt",
         "yuv420p",
         "-c:a",
