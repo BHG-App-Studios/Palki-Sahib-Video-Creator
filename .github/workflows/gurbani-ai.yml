@@ -137,4 +137,4 @@ jobs:
           name: firefox-verification-screenshot
           path: Firefox-Setup/verification-screenshots/*.jpg
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
