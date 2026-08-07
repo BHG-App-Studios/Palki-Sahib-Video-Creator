@@ -222,6 +222,20 @@ async function processPostVideo(videoPath, dateStr) {
     process.stdout.write(youtubeResult.stdout);
     process.stderr.write(youtubeResult.stderr);
 
+    // Publish to Facebook Page + Instagram Reels using the now-public branded
+    // Cloudflare URL. Best-effort: a social failure must NEVER throw, otherwise
+    // main.py would retry create_video.js and duplicate the posts above.
+    console.log('Publishing branded video to Facebook & Instagram...');
+    try {
+        const socialResult = await execPromise(`node Publish-Scripts/publish-social.js "${dateStr}"`, { maxBuffer: 1024 * 1024 * 10 });
+        process.stdout.write(socialResult.stdout);
+        if (socialResult.stderr) process.stderr.write(socialResult.stderr);
+    } catch (socialError) {
+        console.error(`⚠️ Social publish failed (non-fatal): ${socialError.message}`);
+        if (socialError.stdout) process.stdout.write(socialError.stdout);
+        if (socialError.stderr) process.stderr.write(socialError.stderr);
+    }
+
     const completionResponse = await fetch(`${completionWorkerUrl}/complete`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },

@@ -29,6 +29,9 @@ jobs:
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       RUN_COMPLETION_SECRET: ${{ secrets.RUN_COMPLETION_SECRET }}
+      FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+      FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+      INSTAGRAM_PROFILE_ID: ${{ secrets.INSTAGRAM_PROFILE_ID }}
 
     steps:
       - name: Check out repository
@@ -74,6 +77,17 @@ jobs:
           )) {
             if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$secretName").Value)) {
               throw "Missing GitHub Actions secret: $secretName"
+            }
+          }
+          # Social publishing is best-effort: warn (do not fail) if its secrets
+          # are absent so the core pipeline can still run.
+          foreach ($secretName in @(
+            "FACEBOOK_ACCESS_TOKEN",
+            "FACEBOOK_PAGE_ID",
+            "INSTAGRAM_PROFILE_ID"
+          )) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$secretName").Value)) {
+              Write-Warning "Optional social secret not set: $secretName (Facebook/Instagram publishing will be skipped)"
             }
           }
 
