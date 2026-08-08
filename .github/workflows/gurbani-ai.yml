@@ -2,12 +2,6 @@ name: Run Gurbani AI
 
 on:
   workflow_dispatch:
-    inputs:
-      test_mode:
-        description: "Build media and upload GitHub artifacts without publishing"
-        required: true
-        default: true
-        type: boolean
   
 permissions:
   contents: read
@@ -24,7 +18,6 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       PYTHONUTF8: "1"
-      PALKI_TEST_MODE: ${{ inputs.test_mode && '1' || '0' }}
       YT_API_KEY: ${{ secrets.YT_API_KEY }}
       GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
       GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
@@ -76,20 +69,18 @@ jobs:
           ) {
             throw "Add at least one free Gemini key: GEMINI_API_KEY_1 (and optionally _2, _3, _4)."
           }
-          if ($env:PALKI_TEST_MODE -ne "1") {
-            foreach ($secretName in @(
-              "HLS_SECRET",
-              "FIREBASE_PROJECT_ID",
-              "FIREBASE_CLIENT_EMAIL",
-              "FIREBASE_PRIVATE_KEY",
-              "YOUTUBE_CLIENT_ID",
-              "YOUTUBE_CLIENT_SECRET",
-              "YOUTUBE_REFRESH_TOKEN",
-              "RUN_COMPLETION_SECRET"
-            )) {
-              if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$secretName").Value)) {
-                throw "Missing GitHub Actions secret: $secretName"
-              }
+          foreach ($secretName in @(
+            "HLS_SECRET",
+            "FIREBASE_PROJECT_ID",
+            "FIREBASE_CLIENT_EMAIL",
+            "FIREBASE_PRIVATE_KEY",
+            "YOUTUBE_CLIENT_ID",
+            "YOUTUBE_CLIENT_SECRET",
+            "YOUTUBE_REFRESH_TOKEN",
+            "RUN_COMPLETION_SECRET"
+          )) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$secretName").Value)) {
+              throw "Missing GitHub Actions secret: $secretName"
             }
           }
           # Social publishing is best-effort: warn (do not fail) if its secrets
@@ -151,12 +142,3 @@ jobs:
           path: Firefox-Setup/verification-screenshots/*.jpg
           if-no-files-found: error
           retention-days: 1
-
-      - name: Upload generated media test artifacts
-        if: ${{ success() && inputs.test_mode }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: palki-media-test-artifacts
-          path: test-artifacts
-          if-no-files-found: error
-          retention-days: 7

@@ -34,8 +34,7 @@ DETECTION_SCRIPTS = [
     "04_detect_palki_gemini.py",
 ]
 
-# These run once, only after a window matched, to build and optionally publish
-# the short (test mode stages artifacts instead).
+# These run once, only after a window matched, to build and publish the short.
 FINALIZE_SCRIPTS = [
     "05_create_today_short.py",
     "06_calculate_event_time.py",
@@ -48,8 +47,7 @@ FOLDERS_TO_EMPTY = [
     "Original-Video",
     "AI-Response",
     "Today-Short",
-    "Clip-Plan",
-    "test-artifacts",
+    "Clip-Plan"
 ]
 
 RETRY_DELAY_SECONDS = 15  # Delay before retrying a failed script
@@ -172,7 +170,7 @@ def run_detection_with_fallback(attempts):
         if gemini_found_match():
             logging.info(
                 f"Palki Sahib matched in the {attempt['order']} window "
-                f"({attempt['punjabi_month']}). Proceeding to finalize media."
+                f"({attempt['punjabi_month']}). Proceeding to publish."
             )
             return index
 
@@ -214,8 +212,7 @@ def main():
     matched_index = run_detection_with_fallback(attempts)
     os.environ["PALKI_ATTEMPT_INDEX"] = str(matched_index)
 
-    # 3) Build the short from the winning window; create_video.js handles the
-    # production publish or test artifact staging based on PALKI_TEST_MODE.
+    # 3) Build and publish the short from the winning window.
     for script in FINALIZE_SCRIPTS:
         run_script_with_retries(script, extra_env={"PALKI_ATTEMPT_INDEX": matched_index})
 

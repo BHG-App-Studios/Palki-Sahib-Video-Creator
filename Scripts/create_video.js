@@ -190,33 +190,13 @@ async function processPostVideo(videoPath, dateStr) {
     const hlsOutput = path.join(hlsDir, 'index.m3u8').replace(/\\/g, '/');
     const hlsSegment = path.join(hlsDir, 'index%03d.ts').replace(/\\/g, '/');
     await execPromise(`ffmpeg -y -i "${videoPath}" -vf "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(ih,iw),min(1280,ih),-2)',fps=30" -c:v libx264 -preset fast -crf 23 -g 180 -keyint_min 180 -sc_threshold 0 -c:a aac -b:a 128k -hls_time 6 -hls_playlist_type vod -hls_list_size 0 -hls_segment_filename "${hlsSegment}" "${hlsOutput}"`);
-    if (process.env.PALKI_TEST_MODE !== '1') {
-        fs.writeFileSync(hlsOutput, fs.readFileSync(hlsOutput, 'utf8').replace(/index/g, `${baseUrl}/index`));
-    }
+    fs.writeFileSync(hlsOutput, fs.readFileSync(hlsOutput, 'utf8').replace(/index/g, `${baseUrl}/index`));
 
     if (fs.existsSync(logoPath)) {
         console.log('Creating branded MP4...');
         await execPromise(`ffmpeg -y -i "${videoPath}" -i "${logoPath}" -filter_complex "[0:v]scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(ih,iw),min(1280,ih),-2)'[v]; [1:v]scale=iw*0.17:-1[logo]; [v][logo]overlay=x=W-w-(W*0.03):y=H*0.03" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k -movflags +faststart "${brandedPath}"`);
     } else {
         console.log("logo.png not found; branded MP4 creation skipped.");
-    }
-
-    if (process.env.PALKI_TEST_MODE === '1') {
-        const artifactDir = path.join(baseDir, 'test-artifacts');
-        const artifactHlsDir = path.join(artifactDir, 'output_hls');
-        const artifactMp4Dir = path.join(artifactDir, 'output_mp4');
-
-        fs.rmSync(artifactDir, { recursive: true, force: true });
-        fs.mkdirSync(artifactMp4Dir, { recursive: true });
-        fs.copyFileSync(videoPath, path.join(artifactDir, path.basename(videoPath)));
-        fs.copyFileSync(thumbnailPath, path.join(artifactDir, path.basename(thumbnailPath)));
-        fs.cpSync(hlsDir, artifactHlsDir, { recursive: true });
-        if (fs.existsSync(brandedPath)) {
-            fs.copyFileSync(brandedPath, path.join(artifactMp4Dir, path.basename(brandedPath)));
-        }
-        console.log(`Test mode enabled; media staged in ${artifactDir}.`);
-        console.log('Skipping Cloudflare, YouTube, social, and completion publishing.');
-        return;
     }
 
     if (!process.env.RUN_COMPLETION_SECRET) throw new Error('RUN_COMPLETION_SECRET is missing.');
