@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import subprocess
@@ -19,6 +20,14 @@ API_KEY = os.getenv("YT_API_KEY")
 CHANNEL_ID = "UCYn6UEtQ771a_OWSiNBoG8w"
 DOWNLOAD_DIR = BASE_DIR / "Original-Video"
 DOWNLOADER = "yt-dlp"
+# Test support for an ended livestream (VOD).  Enable with
+# PALKI_TEST_MODE=1; production runs continue to use the YouTube live search.
+TEST_VIDEO_URL = "https://www.youtube.com/watch?v=4v1g_PkHI-g"
+TEST_MODE = os.getenv("PALKI_TEST_MODE", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
 FRAGMENT_SECONDS = 5
 FRAGMENT_WORKERS = 8
 LIVE_EDGE_RETRY_SECONDS = 2
@@ -28,6 +37,19 @@ FORMAT_SELECTOR = (
     "bestvideo[vcodec^=avc1][height<=720]"
     "/bestvideo[height<=720]"
 )
+
+
+def yt_dlp_base_command():
+    return [
+        DOWNLOADER,
+        "--ignore-config",
+        "--cookies-from-browser",
+        "firefox",
+        "--js-runtimes",
+        "node",
+        "--remote-components",
+        "ejs:github",
+    ]
 
 
 def configure_utf8_console():
@@ -76,16 +98,33 @@ def get_live_video_url():
     return None
 
 
+def get_test_video_url():
+    """Return the opt-in archived livestream used for local testing."""
+    if TEST_MODE:
+        print(f"Test mode enabled; using archived livestream: {TEST_VIDEO_URL}")
+        return TEST_VIDEO_URL
+    return None
+
+
+def get_video_info(video_url):
+    result = subprocess.run(
+        yt_dlp_base_command()
+        + ["--dump-single-json", "--skip-download", video_url],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        details = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"yt-dlp could not inspect the video:\n{details}")
+
+    try:
+        return json.loads(result.stdout)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise RuntimeError("yt-dlp returned invalid video metadata.") from error
+
+
 def get_video_stream_url(video_url):
-    command = [
-        DOWNLOADER,
-        "--ignore-config",
-        "--cookies-from-browser",
-        "firefox",
-        "--js-runtimes",
-        "node",
-        "--remote-components",
-        "ejs:github",
+    command = yt_dlp_base_command() + [
         "--live-from-start",
         "-f",
         FORMAT_SELECTOR,
@@ -306,8 +345,25 @@ def download_video(video_url, download_seconds):
     )
 
     try:
-        video_stream_url = get_video_stream_url(video_url)
-        download_fragments(video_stream_url, video_part, "video", download_seconds)
+        video_info = get_video_info(video_url)
+        live_status = video_info.get("live_status")
+        is_archived_livestream = live_status == "was_live" or (
+            video_info.get("was_live") is True
+            and video_info.get("is_live") is not True
+        )
+
+        if is_archived_livestream:
+            # An ended livestream no longer exposes the live HLS sequence
+            # (sq=...) used by download_fragments. Download the VOD normally.
+            print("Archived livestream detected; downloading the VOD with yt-dlp...")
+            subprocess.run(
+                yt_dlp_base_command()
+                + ["-f", FORMAT_SELECTOR, "-o", str(video_part), video_url],
+                check=True,
+            )
+        else:
+            video_stream_url = get_video_stream_url(video_url)
+            download_fragments(video_stream_url, video_part, "video", download_seconds)
 
         print(f"Trimming video to exactly {duration_minutes} minutes...")
         subprocess.run(
@@ -341,10 +397,13 @@ def download_video(video_url, download_seconds):
 
 def main():
     print("Checking for live stream...")
-    video_url = get_live_video_url()
+    video_url = get_test_video_url() or get_live_video_url()
 
     if not video_url:
-        print("Target live stream is not live yet. Try again later.")
+        print(
+            "Target live stream is not live yet. Try again later. "
+            "For archived-stream testing, set PALKI_TEST_MODE=1."
+        )
         return 1
 
     video_id = video_id_from_url(video_url)
