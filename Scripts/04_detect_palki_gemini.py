@@ -28,10 +28,10 @@ SAMPLES_FOLDER = BASE_DIR / "Samples"
 RESPONSE_FOLDER = BASE_DIR / "AI-Response"
 RESPONSE_FILE = RESPONSE_FOLDER / "response.json"
 
-GEMINI_API_KEY_FREE = (
-    os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-)
-GEMINI_API_KEY_PAID = os.getenv("GEMINI_API_KEY_PAID")
+# Free Gemini API keys are read from GEMINI_API_KEY_1, GEMINI_API_KEY_2, ...
+# and tried strictly in that numeric order.  MAX_API_KEYS only bounds how far
+# the loader scans; you do not need that many keys configured.
+MAX_API_KEYS = 10
 GEMINI_MODELS = (
     "gemini-3.6-flash",
     "gemini-3.5-flash",
@@ -206,6 +206,38 @@ def chronological_key(image_path):
     )
 
 
+def load_api_keys():
+    """Collect the free Gemini API keys in priority order.
+
+    Keys are read from GEMINI_API_KEY_1, GEMINI_API_KEY_2, ... and returned as
+    (label, key) pairs in that numeric order, which is the exact order the
+    fallback engine consumes them: every model is tried on key 1 first, and the
+    next key is only used once all models are exhausted on the current one.
+
+    Blank keys are ignored and duplicate keys are collapsed so a misconfigured
+    secret cannot silently waste a whole fallback round.  For backward
+    compatibility, a single unnumbered GEMINI_API_KEY (or GOOGLE_API_KEY) is
+    used only when no numbered keys are present.
+    """
+    keys = []
+    seen = set()
+
+    for index in range(1, MAX_API_KEYS + 1):
+        value = os.getenv(f"GEMINI_API_KEY_{index}")
+        value = value.strip() if value else ""
+        if value and value not in seen:
+            seen.add(value)
+            keys.append((str(index), value))
+
+    if not keys:
+        fallback = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        fallback = fallback.strip() if fallback else ""
+        if fallback:
+            keys.append(("1", fallback))
+
+    return keys
+
+
 def find_images(folder):
     if not folder.is_dir():
         raise RuntimeError(f"Folder not found: {folder}")
@@ -262,7 +294,7 @@ def try_model_chain(client, key_label, contents, fallback_round):
 
     for model_number, model_name in enumerate(GEMINI_MODELS, start=1):
         print(
-            f"Trying {key_label} key, model {model_number}/"
+            f"Trying {key_label}, model {model_number}/"
             f"{len(GEMINI_MODELS)} (round {fallback_round}): {model_name}",
             file=sys.stderr,
         )
@@ -282,7 +314,7 @@ def try_model_chain(client, key_label, contents, fallback_round):
 
             if model_number < len(GEMINI_MODELS):
                 print(
-                    f"{model_name} failed for the {key_label} key; "
+                    f"{model_name} failed for {key_label}; "
                     f"falling back to the next model in "
                     f"{MODEL_RETRY_DELAY_SECONDS}s...",
                     file=sys.stderr,
@@ -310,8 +342,8 @@ def call_gemini(clients, active_key_index, contents):
             active_key_index += 1
             fallback_round = 1
             print(
-                f"All models failed with the {key_label} key. Switching to "
-                f"{clients[active_key_index][0]} key for this and all "
+                f"All models failed with {key_label}. Switching to "
+                f"{clients[active_key_index][0]} for this and all "
                 "remaining batches.",
                 file=sys.stderr,
             )
@@ -321,7 +353,7 @@ def call_gemini(clients, active_key_index, contents):
             break
 
         print(
-            f"All models failed with the {key_label} key. Retrying the "
+            f"All models failed with {key_label}. Retrying the "
             f"complete fallback chain in {ALL_MODELS_RETRY_DELAY_SECONDS}s.\n"
             + "\n".join(errors),
             file=sys.stderr,
@@ -336,9 +368,12 @@ def call_gemini(clients, active_key_index, contents):
 
 
 def main():
-    if not GEMINI_API_KEY_FREE and not GEMINI_API_KEY_PAID:
+    api_keys = load_api_keys()
+    if not api_keys:
         raise RuntimeError(
-            "Neither GEMINI_API_KEY nor GEMINI_API_KEY_PAID is configured."
+            "No Gemini API keys configured. Set GEMINI_API_KEY_1 "
+            "(and optionally GEMINI_API_KEY_2, GEMINI_API_KEY_3, "
+            "GEMINI_API_KEY_4, ...)."
         )
 
     frame_paths = sorted(
@@ -361,32 +396,24 @@ def main():
         for sample_path in sample_paths
     ]
 
-    clients = []
-    if GEMINI_API_KEY_FREE:
-        clients.append(
-            (
-                "free",
-                genai.Client(
-                    api_key=GEMINI_API_KEY_FREE,
-                    http_options=types.HttpOptions(
-                        timeout=GEMINI_REQUEST_TIMEOUT_MILLISECONDS
-                    ),
+    clients = [
+        (
+            f"key {label}",
+            genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(
+                    timeout=GEMINI_REQUEST_TIMEOUT_MILLISECONDS
                 ),
-            )
+            ),
         )
-    if GEMINI_API_KEY_PAID:
-        clients.append(
-            (
-                "paid",
-                genai.Client(
-                    api_key=GEMINI_API_KEY_PAID,
-                    http_options=types.HttpOptions(
-                        timeout=GEMINI_REQUEST_TIMEOUT_MILLISECONDS
-                    ),
-                ),
-            )
-        )
+        for label, api_key in api_keys
+    ]
 
+    print(
+        f"Loaded {len(clients)} free Gemini API key(s); trying them in order "
+        f"{', '.join(label for label, _ in clients)}.",
+        file=sys.stderr,
+    )
     active_key_index = 0
     total_batches = (len(frame_paths) + BATCH_SIZE - 1) // BATCH_SIZE
 
