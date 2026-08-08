@@ -36,7 +36,8 @@ FOLDERS_TO_EMPTY = [
     "30min-Clip",
     "Original-Video",
     "AI-Response",
-    "Today-Short"
+    "Today-Short",
+    "Clip-Plan"
 ]
 
 RETRY_DELAY_SECONDS = 15  # Delay before retrying a failed script

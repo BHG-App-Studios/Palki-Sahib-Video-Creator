@@ -10,6 +10,8 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
+from palki_schedule import compute_plan, fetch_actual_start_time, write_plan
+
 
 # --- CONFIGURATION ---
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -17,7 +19,6 @@ API_KEY = os.getenv("YT_API_KEY")
 CHANNEL_ID = "UCYn6UEtQ771a_OWSiNBoG8w"
 DOWNLOAD_DIR = BASE_DIR / "Original-Video"
 DOWNLOADER = "yt-dlp"
-DOWNLOAD_SECONDS = 100 * 60
 FRAGMENT_SECONDS = 5
 FRAGMENT_WORKERS = 8
 LIVE_EDGE_RETRY_SECONDS = 2
@@ -137,8 +138,8 @@ def download_fragment(base_url, sequence, live_edge_reached):
             if not live_edge_reached.is_set():
                 live_edge_reached.set()
                 print(
-                    "\nCaught up to the live stream. Waiting for new video "
-                    f"until {DOWNLOAD_SECONDS // 60} minutes are available..."
+                    "\nCaught up to the live stream. Waiting for more video "
+                    "to become available..."
                 )
             time.sleep(LIVE_EDGE_RETRY_SECONDS)
             continue
@@ -182,10 +183,10 @@ def probe_media_duration(media_path):
         ) from error
 
 
-def download_fragments(base_url, output_path, label):
+def download_fragments(base_url, output_path, label, download_seconds):
     # sq=0 contains initialization data. A few extra media fragments ensure
     # FFmpeg has enough content available for an exact final trim.
-    media_fragment_count = math.ceil(DOWNLOAD_SECONDS / FRAGMENT_SECONDS) + 3
+    media_fragment_count = math.ceil(download_seconds / FRAGMENT_SECONDS) + 3
     live_edge_reached = Event()
     next_sequence = 0
     duration_detected = False
@@ -242,7 +243,7 @@ def download_fragments(base_url, output_path, label):
                 media_fragment_count = max(
                     batch[-1],
                     math.ceil(
-                        (DOWNLOAD_SECONDS + FINAL_DURATION_BUFFER_SECONDS)
+                        (download_seconds + FINAL_DURATION_BUFFER_SECONDS)
                         / measured_fragment_seconds
                     )
                     + 3,
@@ -262,7 +263,7 @@ def download_fragments(base_url, output_path, label):
             )
 
         downloaded_duration = probe_media_duration(output_path)
-        required_duration = DOWNLOAD_SECONDS + FINAL_DURATION_BUFFER_SECONDS
+        required_duration = download_seconds + FINAL_DURATION_BUFFER_SECONDS
         if downloaded_duration >= required_duration:
             break
 
@@ -288,11 +289,11 @@ def video_id_from_url(video_url):
     return parse_qs(urlparse(video_url).query).get("v", ["live_stream"])[0]
 
 
-def download_video(video_url):
+def download_video(video_url, download_seconds):
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     video_id = video_id_from_url(video_url)
-    duration_minutes = DOWNLOAD_SECONDS // 60
+    duration_minutes = download_seconds // 60
     output_path = DOWNLOAD_DIR / f"{video_id}_first_{duration_minutes}_minutes.mkv"
     temporary_output = (
         DOWNLOAD_DIR / f"{video_id}_first_{duration_minutes}_minutes.tmp.mkv"
@@ -300,13 +301,13 @@ def download_video(video_url):
     video_part = DOWNLOAD_DIR / f".{video_id}.video.part"
 
     print(
-        f"\nFast-downloading the FIRST {DOWNLOAD_SECONDS // 60} minutes "
+        f"\nFast-downloading the FIRST {download_seconds // 60} minutes "
         f"of the stream: {video_url}"
     )
 
     try:
         video_stream_url = get_video_stream_url(video_url)
-        download_fragments(video_stream_url, video_part, "video")
+        download_fragments(video_stream_url, video_part, "video", download_seconds)
 
         print(f"Trimming video to exactly {duration_minutes} minutes...")
         subprocess.run(
@@ -319,7 +320,7 @@ def download_video(video_url):
                 "-i",
                 str(video_part),
                 "-t",
-                str(DOWNLOAD_SECONDS),
+                str(download_seconds),
                 "-map",
                 "0:v:0",
                 "-an",
@@ -346,7 +347,23 @@ def main():
         print("Target live stream is not live yet. Try again later.")
         return 1
 
-    download_video(video_url)
+    video_id = video_id_from_url(video_url)
+    actual_start_utc = fetch_actual_start_time(video_id, API_KEY)
+    plan = compute_plan(actual_start_utc, video_id, video_url)
+    write_plan(plan)
+
+    print(
+        f"Stream started {plan['actual_start_ist']} (IST). "
+        f"{plan['punjabi_month']} Palki Sahib at "
+        f"{plan['scheduled_palki_time_ist']}."
+    )
+    print(
+        f"Clip window: {plan['clip_start_ist']} to {plan['clip_end_ist']} "
+        f"(offset {plan['clip_start_offset_seconds']}s, "
+        f"downloading {plan['download_seconds'] // 60} min from start)."
+    )
+
+    download_video(video_url, plan["download_seconds"])
     return 0
 
 
