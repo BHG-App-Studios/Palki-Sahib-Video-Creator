@@ -48,8 +48,9 @@ DOWNLOAD_TAIL_SECONDS = 5 * 60      # download a little past clip end for a safe
 # Sources (both official SGPC), cross-checked:
 #   - Departure time  : sgpc.net/daily-routine  ("ਪਾਲਕੀ ਸਾਹਿਬ ... ਚੱਲਣ ਦਾ ਸਮਾਂ")
 #         Jeth+Harh 4:00, Vaisakh+Sawan 4:15, Chet+Bhadon 4:30,
-#         Phaggan+Assu 4:45, Kattak+Maggar+Poh+Magh 5:00.
-#   - Month start/end dates : SGPC Punjabi-month (Bikrami) calendar table.
+#         Phaggan+Assu 4:45, Kattak+Maghar+Poh+Magh 5:00.
+#   - Month start/end dates : official 2026 SGPC Punjabi-month (Bikrami)
+#         calendar table.  Magh and Phaggan begin in January/February 2027.
 #
 # The times are symmetric around the summer solstice (Jeth/Harh = earliest 4:00,
 # rising to 5:00 through the winter months).
@@ -58,14 +59,14 @@ PALKI_SCHEDULE = [
     (4, 14, "Vaisakh", 4, 15),    # 14 Apr - 14 May
     (5, 15, "Jeth", 4, 0),        # 15 May - 14 Jun
     (6, 15, "Harh", 4, 0),        # 15 Jun - 15 Jul
-    (7, 16, "Sawan", 4, 15),      # 16 Jul - 15 Aug
-    (8, 16, "Bhadon", 4, 30),     # 16 Aug - 14 Sep
-    (9, 15, "Assu", 4, 45),       # 15 Sep - 14 Oct
-    (10, 15, "Kattak", 5, 0),     # 15 Oct - 13 Nov
-    (11, 14, "Maggar", 5, 0),     # 14 Nov - 13 Dec
-    (12, 14, "Poh", 5, 0),        # 14 Dec - 12 Jan
-    (1, 13, "Magh", 5, 0),        # 13 Jan - 11 Feb
-    (2, 12, "Phaggan", 4, 45),    # 12 Feb - 13 Mar
+    (7, 16, "Sawan", 4, 15),      # 16 Jul - 16 Aug
+    (8, 17, "Bhadon", 4, 30),     # 17 Aug - 16 Sep
+    (9, 17, "Assu", 4, 45),       # 17 Sep - 16 Oct
+    (10, 17, "Kattak", 5, 0),     # 17 Oct - 15 Nov
+    (11, 16, "Maghar", 5, 0),     # 16 Nov - 15 Dec
+    (12, 16, "Poh", 5, 0),        # 16 Dec - 13 Jan
+    (1, 14, "Magh", 5, 0),        # 14 Jan - 12 Feb (2027)
+    (2, 13, "Phaggan", 4, 45),    # 13 Feb - 13 Mar (2027)
 ]
 
 
