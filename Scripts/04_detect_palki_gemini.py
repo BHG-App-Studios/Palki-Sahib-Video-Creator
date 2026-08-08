@@ -289,6 +289,39 @@ def build_contents(sample_parts, frame_batch):
     return contents
 
 
+def describe_gemini_error(error):
+    """Turn a Gemini/SDK exception into one concise, log-friendly line.
+
+    The google-genai SDK raises APIError subclasses (ClientError, ServerError)
+    that carry the HTTP status code and the server's JSON error body, which is
+    what actually states the cause: quota/rate limit ("429 RESOURCE_EXHAUSTED"),
+    an unavailable or unknown model ("404 NOT_FOUND"), a bad request
+    ("400 INVALID_ARGUMENT"), a transient outage ("503 UNAVAILABLE"), etc.
+    Other failures (request timeout, or the model returning non-JSON) fall back
+    to the exception type and message.  Surfacing this is what lets the logs
+    explain WHY a model was skipped, not just that it was.
+    """
+    parts = [type(error).__name__]
+
+    header = []
+    code = getattr(error, "code", None)
+    if code is not None:
+        header.append(str(code))
+    status = getattr(error, "status", None)
+    if status:
+        header.append(str(status))
+    if header:
+        parts.append(" ".join(header))
+
+    message = getattr(error, "message", None) or str(error)
+    # Collapse newlines/indentation from the JSON body into a single line.
+    message = " ".join(message.split())
+    if message:
+        parts.append(message)
+
+    return " | ".join(parts)
+
+
 def try_model_chain(client, key_label, contents, fallback_round):
     errors = []
 
@@ -310,12 +343,19 @@ def try_model_chain(client, key_label, contents, fallback_round):
 
             return MatchResult.model_validate(json.loads(response.text)), None
         except Exception as error:
-            errors.append(f"{model_name}: {error}")
+            detail = describe_gemini_error(error)
+            errors.append(f"{model_name} on {key_label}: {detail}")
+
+            # Always log the real Gemini error so failures are diagnosable.
+            print(
+                f"  [FAIL] {model_name} on {key_label} "
+                f"(round {fallback_round}): {detail}",
+                file=sys.stderr,
+            )
 
             if model_number < len(GEMINI_MODELS):
                 print(
-                    f"{model_name} failed for {key_label}; "
-                    f"falling back to the next model in "
+                    f"  -> Falling back to the next model in "
                     f"{MODEL_RETRY_DELAY_SECONDS}s...",
                     file=sys.stderr,
                 )
@@ -326,6 +366,7 @@ def try_model_chain(client, key_label, contents, fallback_round):
 
 def call_gemini(clients, active_key_index, contents):
     fallback_round = 1
+    last_errors = "    - (no error captured)"
 
     while fallback_round <= MAX_FALLBACK_ROUNDS:
         key_label, client = clients[active_key_index]
@@ -338,13 +379,20 @@ def call_gemini(clients, active_key_index, contents):
         if result is not None:
             return result, active_key_index
 
+        error_summary = "\n".join(f"    - {line}" for line in errors)
+        last_errors = error_summary
+
         if active_key_index + 1 < len(clients):
+            print(
+                f"All {len(GEMINI_MODELS)} models failed on {key_label}. "
+                "Errors this round:\n" + error_summary,
+                file=sys.stderr,
+            )
             active_key_index += 1
             fallback_round = 1
             print(
-                f"All models failed with {key_label}. Switching to "
-                f"{clients[active_key_index][0]} for this and all "
-                "remaining batches.",
+                f"Switching to {clients[active_key_index][0]} for this and "
+                "all remaining batches.",
                 file=sys.stderr,
             )
             continue
@@ -353,9 +401,9 @@ def call_gemini(clients, active_key_index, contents):
             break
 
         print(
-            f"All models failed with {key_label}. Retrying the "
-            f"complete fallback chain in {ALL_MODELS_RETRY_DELAY_SECONDS}s.\n"
-            + "\n".join(errors),
+            f"All models failed on {key_label} (last key). Retrying the "
+            f"complete fallback chain in {ALL_MODELS_RETRY_DELAY_SECONDS}s. "
+            "Errors this round:\n" + error_summary,
             file=sys.stderr,
         )
         time.sleep(ALL_MODELS_RETRY_DELAY_SECONDS)
@@ -363,7 +411,8 @@ def call_gemini(clients, active_key_index, contents):
 
     raise RuntimeError(
         "Gemini failed to return a response after "
-        f"{MAX_FALLBACK_ROUNDS} complete fallback rounds."
+        f"{MAX_FALLBACK_ROUNDS} complete fallback rounds. Last errors:\n"
+        + last_errors
     )
 
 
