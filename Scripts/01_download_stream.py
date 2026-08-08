@@ -352,15 +352,17 @@ def main():
     plan = compute_plan(actual_start_utc, video_id, video_url)
     write_plan(plan)
 
+    print(f"Stream started {plan['actual_start_ist']} (IST). Candidate windows:")
+    for index, attempt in enumerate(plan["attempts"]):
+        print(
+            f"  [{index}] {attempt['order']}: {attempt['punjabi_month']} "
+            f"Palki {attempt['scheduled_palki_time_ist']} -> clip "
+            f"{attempt['clip_start_ist']} to {attempt['clip_end_ist']} "
+            f"(offset {attempt['clip_start_offset_seconds']}s)"
+        )
     print(
-        f"Stream started {plan['actual_start_ist']} (IST). "
-        f"{plan['punjabi_month']} Palki Sahib at "
-        f"{plan['scheduled_palki_time_ist']}."
-    )
-    print(
-        f"Clip window: {plan['clip_start_ist']} to {plan['clip_end_ist']} "
-        f"(offset {plan['clip_start_offset_seconds']}s, "
-        f"downloading {plan['download_seconds'] // 60} min from start)."
+        f"Downloading {plan['download_seconds'] // 60} min from stream start "
+        "to cover every candidate window in one pass."
     )
 
     download_video(video_url, plan["download_seconds"])

@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from palki_schedule import read_plan
+from palki_schedule import active_attempt, read_plan
 
 # ---------------- CONFIG ----------------
 
@@ -15,9 +15,12 @@ OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
 
 # The clip window is anchored to the scheduled Palki Sahib clock time (computed
 # in 01_download_stream.py), not a fixed video offset, so a late-starting stream
-# still lands the event in the middle of the clip.
+# still lands the event in the middle of the clip.  PALKI_ATTEMPT_INDEX selects
+# which candidate window (current / previous / next month) to cut this pass; the
+# whole download already covers every window, so this only changes the -ss/-t.
 plan = read_plan()
-start_seconds = plan["clip_start_offset_seconds"]
+attempt_index, attempt = active_attempt(plan)
+start_seconds = attempt["clip_start_offset_seconds"]
 duration_seconds = plan["clip_duration_seconds"]
 
 # Find downloaded video
@@ -48,8 +51,9 @@ command = [
 ]
 
 print(
-    f"Cutting {plan['clip_start_ist']} to {plan['clip_end_ist']} "
-    f"({plan['punjabi_month']}, Palki at {plan['scheduled_palki_time_ist']})..."
+    f"[attempt {attempt_index}: {attempt['order']}] "
+    f"Cutting {attempt['clip_start_ist']} to {attempt['clip_end_ist']} "
+    f"({attempt['punjabi_month']}, Palki at {attempt['scheduled_palki_time_ist']})..."
 )
 
 subprocess.run(command, check=True)

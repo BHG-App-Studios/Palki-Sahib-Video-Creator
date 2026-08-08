@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from palki_schedule import IST, read_plan
+from palki_schedule import IST, active_attempt, read_plan
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -44,8 +44,11 @@ def main():
         raise RuntimeError("Gemini did not find a reliable Palki Sahib start frame.")
 
     plan = read_plan()
+    # The winning pass recorded which candidate window actually matched, so the
+    # event time is mapped onto that attempt's offset, not the primary one.
+    attempt_index, attempt = active_attempt(plan)
     clip_duration = timedelta(seconds=plan["clip_duration_seconds"])
-    clip_start_offset = timedelta(seconds=plan["clip_start_offset_seconds"])
+    clip_start_offset = timedelta(seconds=attempt["clip_start_offset_seconds"])
 
     detected_offset = frame_offset(response_data.get("frame"))
     if detected_offset > clip_duration:
@@ -59,8 +62,9 @@ def main():
     event_time_ist = event_time_utc.astimezone(IST)
 
     response_data["youtube_video_id"] = plan["video_id"]
-    response_data["punjabi_month"] = plan["punjabi_month"]
-    response_data["scheduled_palki_time_ist"] = plan["scheduled_palki_time_ist"]
+    response_data["punjabi_month"] = attempt["punjabi_month"]
+    response_data["scheduled_palki_time_ist"] = attempt["scheduled_palki_time_ist"]
+    response_data["matched_attempt"] = attempt["order"]
     response_data["livestream_actual_start_utc"] = plan["actual_start_utc"]
     response_data["clip_start_ist"] = clip_start_utc.astimezone(IST).isoformat()
     response_data["clip_end_ist"] = (clip_start_utc + clip_duration).astimezone(IST).isoformat()

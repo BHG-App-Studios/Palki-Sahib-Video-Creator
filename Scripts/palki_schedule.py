@@ -19,6 +19,7 @@ plain ``import palki_schedule`` resolves for every sibling script.
 
 import json
 import math
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -100,6 +101,62 @@ def palki_schedule_for(date):
     return best[1], best[2], best[3]
 
 
+# The schedule sorted by calendar start ordinal is the Punjabi month order and is
+# cyclic (Poh -> Magh wraps the year end).  This lets us find the month before and
+# after the current one, which is the basis of the boundary-drift fallback: the
+# hardcoded start dates can differ from Harmandir Sahib's actual date by a day or
+# two, so near a month boundary the neighbour's departure time may be the correct
+# one.  We try the current month first, then the previous, then the next.
+_SORTED_SCHEDULE = sorted(PALKI_SCHEDULE, key=lambda entry: _ordinal(entry[0], entry[1]))
+
+
+def _current_index(date):
+    """Index into _SORTED_SCHEDULE of the month covering ``date``."""
+    date_ord = _ordinal(date.month, date.day)
+
+    best_i = None
+    best_ord = None
+    for i, (month, day, _name, _hour, _minute) in enumerate(_SORTED_SCHEDULE):
+        start_ord = _ordinal(month, day)
+        if start_ord <= date_ord and (best_ord is None or start_ord > best_ord):
+            best_ord = start_ord
+            best_i = i
+
+    if best_i is None:
+        # Early-January dates (before Magh) wrap to the last period, Poh.
+        best_i = len(_SORTED_SCHEDULE) - 1
+
+    return best_i
+
+
+def _attempt_from_entry(entry, order_label, start_ist, event_date):
+    """Build one clip-window attempt, or None if it cannot be captured."""
+    _month, _day, name, hour, minute = entry
+    target_ist = datetime(
+        event_date.year, event_date.month, event_date.day, hour, minute, 0, tzinfo=IST
+    )
+
+    target_offset = (target_ist - start_ist).total_seconds()
+    if target_offset <= 0:
+        # Stream started at or after this candidate time; it cannot be captured.
+        return None
+
+    clip_start_offset = max(0, int(round(target_offset - CLIP_PRE_SECONDS)))
+    clip_start_ist = start_ist + timedelta(seconds=clip_start_offset)
+    clip_end_ist = clip_start_ist + timedelta(seconds=CLIP_DURATION_SECONDS)
+
+    return {
+        "order": order_label,
+        "punjabi_month": name,
+        "scheduled_palki_time_ist": f"{hour:02d}:{minute:02d}",
+        "target_ist": target_ist.isoformat(),
+        "target_offset_seconds": int(round(target_offset)),
+        "clip_start_offset_seconds": clip_start_offset,
+        "clip_start_ist": clip_start_ist.isoformat(),
+        "clip_end_ist": clip_end_ist.isoformat(),
+    }
+
+
 def fetch_actual_start_time(video_id, api_key):
     """Return the livestream's actualStartTime as an aware UTC datetime."""
     if not api_key:
@@ -134,47 +191,114 @@ def fetch_actual_start_time(video_id, api_key):
 
 
 def compute_plan(actual_start_utc, video_id, video_url):
-    """Build the clock-time-anchored clip plan for a given stream start."""
+    """Build the clock-time-anchored clip plan for a given stream start.
+
+    The plan carries an ordered list of clip-window *attempts* so the pipeline can
+    fall back across a Punjabi-month boundary if the calendar is a day or two off:
+
+        1. current month   (the schedule row covering the stream date)
+        2. previous month  (in case the real boundary is slightly later)
+        3. next month      (in case the real boundary is slightly earlier)
+
+    Each attempt is a self-contained 30-minute window (start offset + duration).
+    Only the download is shared: it covers the widest attempt once, and a no-match
+    on one attempt is retried by re-cutting the *same* downloaded file to the next
+    window -- no extra download.  Attempts whose target is at/before the stream
+    start (uncapturable) are dropped, and attempts that resolve to the identical
+    clip start are de-duplicated so adjacent same-time months (e.g. Kattak/Maggar
+    both 5:00) are not scanned twice.
+    """
     start_ist = actual_start_utc.astimezone(IST)
     event_date = start_ist.date()
 
-    month_name, hour, minute = palki_schedule_for(event_date)
-    target_ist = datetime(
-        event_date.year, event_date.month, event_date.day, hour, minute, 0, tzinfo=IST
-    )
+    current_i = _current_index(event_date)
+    count = len(_SORTED_SCHEDULE)
+    ordered_entries = [
+        ("current", _SORTED_SCHEDULE[current_i]),
+        ("previous", _SORTED_SCHEDULE[(current_i - 1) % count]),
+        ("next", _SORTED_SCHEDULE[(current_i + 1) % count]),
+    ]
 
-    target_offset = (target_ist - start_ist).total_seconds()
-    if target_offset <= 0:
+    attempts = []
+    seen_starts = set()
+    for order_label, entry in ordered_entries:
+        attempt = _attempt_from_entry(entry, order_label, start_ist, event_date)
+        if attempt is None:
+            continue
+        start_key = attempt["clip_start_offset_seconds"]
+        if start_key in seen_starts:
+            continue
+        seen_starts.add(start_key)
+        attempts.append(attempt)
+
+    if not attempts:
+        current_entry = _SORTED_SCHEDULE[current_i]
         raise RuntimeError(
-            "Livestream started at or after the scheduled Palki Sahib time "
-            f"({month_name} {hour:02d}:{minute:02d} IST); the event cannot be "
-            f"captured from the stream start ({start_ist.isoformat()})."
+            "Livestream started at or after every candidate Palki Sahib time "
+            f"(current month {current_entry[2]} "
+            f"{current_entry[3]:02d}:{current_entry[4]:02d} IST); the event "
+            f"cannot be captured from the stream start ({start_ist.isoformat()})."
         )
 
-    clip_start_offset = max(0, int(round(target_offset - CLIP_PRE_SECONDS)))
     clip_duration = CLIP_DURATION_SECONDS
+    latest_clip_end_offset = max(
+        attempt["clip_start_offset_seconds"] + clip_duration for attempt in attempts
+    )
     download_seconds = int(
-        math.ceil(clip_start_offset + clip_duration + DOWNLOAD_TAIL_SECONDS)
+        math.ceil(latest_clip_end_offset + DOWNLOAD_TAIL_SECONDS)
     )
 
-    clip_start_ist = start_ist + timedelta(seconds=clip_start_offset)
-    clip_end_ist = clip_start_ist + timedelta(seconds=clip_duration)
-
+    primary = attempts[0]
     return {
         "video_id": video_id,
         "video_url": video_url,
-        "punjabi_month": month_name,
-        "scheduled_palki_time_ist": f"{hour:02d}:{minute:02d}",
         "actual_start_utc": actual_start_utc.isoformat().replace("+00:00", "Z"),
         "actual_start_ist": start_ist.isoformat(),
-        "target_ist": target_ist.isoformat(),
-        "target_offset_seconds": int(round(target_offset)),
-        "clip_start_offset_seconds": clip_start_offset,
         "clip_duration_seconds": clip_duration,
         "download_seconds": download_seconds,
-        "clip_start_ist": clip_start_ist.isoformat(),
-        "clip_end_ist": clip_end_ist.isoformat(),
+        # The primary (current-month) window is mirrored at the top level so any
+        # reader that predates the fallback logic still sees a valid single plan.
+        "punjabi_month": primary["punjabi_month"],
+        "scheduled_palki_time_ist": primary["scheduled_palki_time_ist"],
+        "target_ist": primary["target_ist"],
+        "target_offset_seconds": primary["target_offset_seconds"],
+        "clip_start_offset_seconds": primary["clip_start_offset_seconds"],
+        "clip_start_ist": primary["clip_start_ist"],
+        "clip_end_ist": primary["clip_end_ist"],
+        "attempts": attempts,
     }
+
+
+# Environment variable the pipeline sets to select which attempt scripts 02/04/06
+# operate on for the current pass (0 = current month, 1 = previous, 2 = next).
+ATTEMPT_INDEX_ENV = "PALKI_ATTEMPT_INDEX"
+
+
+def active_attempt(plan):
+    """Return (index, attempt) selected by ATTEMPT_INDEX_ENV (default 0).
+
+    Scripts 02 (cut), 04-consumer 06 (event time) call this so they all agree on
+    which candidate window the current pass is working on.
+    """
+    attempts = plan.get("attempts")
+    if not attempts:
+        raise RuntimeError("Clip plan has no attempts; re-run 01_download_stream.py.")
+
+    raw = os.getenv(ATTEMPT_INDEX_ENV, "0").strip() or "0"
+    try:
+        index = int(raw)
+    except ValueError as error:
+        raise RuntimeError(
+            f"Invalid {ATTEMPT_INDEX_ENV}={raw!r}; must be an integer."
+        ) from error
+
+    if index < 0 or index >= len(attempts):
+        raise RuntimeError(
+            f"{ATTEMPT_INDEX_ENV}={index} is out of range; the plan has "
+            f"{len(attempts)} attempt(s)."
+        )
+
+    return index, attempts[index]
 
 
 def write_plan(plan):
