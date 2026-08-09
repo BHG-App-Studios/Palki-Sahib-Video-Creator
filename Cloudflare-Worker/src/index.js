@@ -1,5 +1,5 @@
 const GITHUB_OWNER = 'BHG-App-Studios';
-const GITHUB_REPOSITORY = 'Palki-Sahib-Video-Creator-Test';
+const GITHUB_REPOSITORY = 'Palki-Sahib-Video-Creator';
 const GITHUB_WORKFLOW = 'gurbani-ai.yml';
 const GITHUB_REF = 'main';
 const COMPLETION_TTL_SECONDS = 12 * 60 * 60;
