@@ -135,7 +135,7 @@ jobs:
         run: node Publish-Scripts/notify-admin-failure.js
 
       - name: Upload Firefox verification screenshot
-        if: ${{ success() }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
           name: firefox-verification-screenshot
