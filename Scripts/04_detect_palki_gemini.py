@@ -60,14 +60,14 @@ Your job is to inspect a sequence of extracted video frames from the official SG
 GOAL
 =========================================================
 
-Find the FIRST frame where the Palki Sahib procession begins.
+Find the EXACT FIRST frame where the Palki Sahib procession begins.
 
-Specifically detect the moment when:
+Specifically detect the strict starting moment when:
 
-• Baba Ji is carrying Sri Guru Granth Sahib Ji on the decorated Palki Sahib.
-• The Palki Sahib is clearly visible.
-• The ceremonial procession has started.
-• This is the beginning of the procession, not the middle or end.
+• Baba Ji picks up and is actively carrying Sri Guru Granth Sahib Ji ON HIS HEAD.
+• The Sri Guru Granth Sahib Ji is visibly placed on Baba Ji's head.
+• The ceremonial procession has just started with this precise action.
+• DO NOT choose a frame if it only shows the decorated Palki Sahib from a distance. The exact starting point is Baba Ji carrying Sri Guru Granth Sahib Ji on his head.
 
 Return ONLY the earliest matching frame.
 
@@ -119,15 +119,17 @@ DETECTION RULES
 
 Positive Match:
 
-✔ Baba Ji carrying Sri Guru Granth Sahib Ji
-
-✔ Decorated Palki Sahib visible
+✔ Baba Ji actively carrying Sri Guru Granth Sahib Ji ON HIS HEAD
 
 ✔ Sikh ceremonial procession
 
-✔ Procession has STARTED
+✔ Procession has STARTED (strictly marked by Baba Ji picking up Sri Guru Granth Sahib Ji)
 
 Negative Match:
+
+✘ ONLY the decorated Palki Sahib is visible from afar (without Baba Ji carrying Sri Guru Granth Sahib Ji on his head)
+
+✘ Baba Ji is not yet carrying Sri Guru Granth Sahib Ji on his head
 
 ✘ Empty Darbar Sahib
 
@@ -167,7 +169,7 @@ Return ONLY this JSON.
     "match_found": true,
     "frame": "04_40_00.png",
     "confidence": 99,
-    "reason": "First frame where Baba Ji is visibly carrying Sri Guru Granth Sahib Ji on the decorated Palki Sahib and the procession has begun."
+    "reason": "First frame where Baba Ji is visibly carrying Sri Guru Granth Sahib Ji on his head, marking the strict start of the procession."
 }
 
 If nothing is found
