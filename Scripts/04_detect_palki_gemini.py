@@ -107,7 +107,7 @@ Examples
 
 ...
 
-29_55_00.png
+39_55_00.png
 
 Read them in chronological order.
 

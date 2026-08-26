@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 INPUT_FOLDER = BASE_DIR / "30min-Clip"
 OUTPUT_FOLDER = BASE_DIR / "Extracted-Frames"
 
-CLIP_DURATION_SECONDS = 30 * 60
+CLIP_DURATION_SECONDS = 40 * 60
 FRAME_INTERVAL_SECONDS = 5
 
 # ----------------------------------------
@@ -36,7 +36,7 @@ for extension in video_extensions:
         break
 
 if not video_file:
-    print("No 30-minute clip found.")
+    print("No 40-minute clip found.")
     raise SystemExit(1)
 
 
@@ -92,7 +92,7 @@ for frame_number, temporary_file in enumerate(temporary_files, start=1):
     output_file = OUTPUT_FOLDER / timestamp_filename(timestamp)
     os.replace(temporary_file, output_file)
 
-# Extract the last available frame and name it as the 30-minute endpoint.
+# Extract the last available frame and name it as the 40-minute endpoint.
 final_output_file = OUTPUT_FOLDER / timestamp_filename(CLIP_DURATION_SECONDS)
 subprocess.run(
     [
@@ -115,5 +115,6 @@ subprocess.run(
 )
 
 print(
-    f"\nDone! 360 frames saved in: {OUTPUT_FOLDER}"
+    f"\nDone! {CLIP_DURATION_SECONDS // FRAME_INTERVAL_SECONDS} frames saved in: "
+    f"{OUTPUT_FOLDER}"
 )
