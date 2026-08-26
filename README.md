@@ -16,7 +16,7 @@ Used for automating the video upload to your YouTube channel.
 - **YOUTUBE_REFRESH_TOKEN**: [Your YouTube OAuth Refresh Token]
 
 ### YouTube Downloading
-Used by yt-dlp to download the official SGPC Harmandir Sahib livestream.
+Used by yt-dlp to download the official livestream.
 - **YT_API_KEY**: [Your YouTube Data API Key]
 
 ### Gemini AI Vision
