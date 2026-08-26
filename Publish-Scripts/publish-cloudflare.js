@@ -145,10 +145,18 @@ async function publish() {
             videoResolution: "1080p"
         };
 
-        // Keep both databases identical by using the same document ID and data.
+        const secondaryPostData = {
+            brandedVideo: postData.brandedVideo,
+            caption: postData.caption,
+            hlsUrl: postData.hlsUrl,
+            thumbnailUrl: postData.thumbnailUrl,
+            timestamp: postData.timestamp
+        };
+
+        // Use the same document ID while storing the reduced secondary schema.
         await Promise.all([
             postRef.set(postData),
-            db2.collection('Palki-Sahib-Video').doc(postRef.id).set(postData)
+            db2.collection('Palki-Sahib-Video').doc(postRef.id).set(secondaryPostData)
         ]);
 
         console.log(`✅ Successfully added to Firestore! Document ID: ${postRef.id}`);
