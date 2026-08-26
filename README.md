@@ -4,7 +4,7 @@ When setting up this project (e.g., in GitHub Actions or locally), you will need
 
 ### Firebase Configuration
 Used for uploading and publishing the final videos to Cloudflare/Firebase.
-- **FIREBASE_CLIENT_EMAIL**: `jskson9209@gmail.com`
+- **FIREBASE_CLIENT_EMAIL**: [Your Firebase service-account email]
 - **FIREBASE_PROJECT_ID**: [Your Firebase Project ID]
 - **FIREBASE_PRIVATE_KEY**: [Your Firebase Private Key]
 - **FIREBASE2_PROJECT_ID**: [Your second Firebase Project ID]
