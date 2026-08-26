@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { cert, initializeApp } = require('firebase-admin/app');
+const { cert, getApp, initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
 // Date is passed from create_video.js
@@ -13,6 +13,9 @@ const workerUrl = "https://gurbani-kirtan-darbar.iemgurpreets.workers.dev/hls/up
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+const project2Id = process.env.FIREBASE2_PROJECT_ID;
+const client2Email = process.env.FIREBASE2_CLIENT_EMAIL;
+let private2Key = process.env.FIREBASE2_PRIVATE_KEY;
 
 if (!hlsSecret) {
     console.error("❌ HLS_SECRET environment variable is missing!");
@@ -22,11 +25,15 @@ if (!hlsSecret) {
 // Initialize Firebase with separate variables
 try {
     if (!projectId || !clientEmail || !privateKey) {
-        throw new Error("Firebase credentials missing in environment variables.");
+        throw new Error("Primary Firebase credentials missing in environment variables.");
+    }
+    if (!project2Id || !client2Email || !private2Key) {
+        throw new Error("Secondary Firebase credentials missing in environment variables.");
     }
 
     // Fix formatting in case GitHub Secrets escapes newlines in the private key
     privateKey = privateKey.replace(/\\n/g, '\n');
+    private2Key = private2Key.replace(/\\n/g, '\n');
 
     initializeApp({
         credential: cert({
@@ -35,12 +42,20 @@ try {
             privateKey: privateKey
         })
     });
+    initializeApp({
+        credential: cert({
+            projectId: project2Id,
+            clientEmail: client2Email,
+            privateKey: private2Key
+        })
+    }, 'secondary');
 } catch (e) {
     console.error("❌ Failed to initialize Firebase:", e.message);
     process.exit(1);
 }
 
 const db = getFirestore();
+const db2 = getFirestore(getApp('secondary'));
 const currentTimestamp = Date.now(); // Integer timestamp
 
 // Keys mapped identical to bash script logic
@@ -130,7 +145,11 @@ async function publish() {
             videoResolution: "1080p"
         };
 
-        await postRef.set(postData);
+        // Keep both databases identical by using the same document ID and data.
+        await Promise.all([
+            postRef.set(postData),
+            db2.collection('Palki-Sahib-Video').doc(postRef.id).set(postData)
+        ]);
 
         console.log(`✅ Successfully added to Firestore! Document ID: ${postRef.id}`);
         process.exit(0);

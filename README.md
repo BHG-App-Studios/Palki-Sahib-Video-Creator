@@ -7,6 +7,9 @@ Used for uploading and publishing the final videos to Cloudflare/Firebase.
 - **FIREBASE_CLIENT_EMAIL**: `jskson9209@gmail.com`
 - **FIREBASE_PROJECT_ID**: [Your Firebase Project ID]
 - **FIREBASE_PRIVATE_KEY**: [Your Firebase Private Key]
+- **FIREBASE2_PROJECT_ID**: [Your second Firebase Project ID]
+- **FIREBASE2_CLIENT_EMAIL**: [Your second Firebase service-account email]
+- **FIREBASE2_PRIVATE_KEY**: [Your second Firebase Private Key]
 - **HLS_SECRET**: [Your Cloudflare Worker HLS Secret]
 
 ### YouTube Publishing
