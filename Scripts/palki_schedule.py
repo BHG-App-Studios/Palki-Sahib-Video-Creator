@@ -7,7 +7,7 @@ time that only depends on the Punjabi month (roughly 4:00-5:00 AM IST).
 Instead of cutting a fixed video *offset* (which drifts off the event whenever
 the stream starts late), the pipeline anchors everything to real clock time:
 
-    clip window = [target - 20 min, target + 20 min]   (40 minutes total)
+    clip window = [target - 15 min, target + 25 min]   (40 minutes total)
 
 where ``target`` is the scheduled Palki Sahib time for the day, and offsets are
 measured from the stream's ``actualStartTime`` (== offset 0 in the download).
@@ -33,10 +33,10 @@ PLAN_FILE = PLAN_FOLDER / "clip_plan.json"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 # --- Tunable window configuration ---------------------------------------------
-# Keep the event centered in the clip so the downstream frame extractor (03) and
-# Gemini detector (04) scan the same way across the wider 40-minute window.
-CLIP_PRE_SECONDS = 20 * 60          # start the clip 20 min before the event
-CLIP_POST_SECONDS = 20 * 60         # end the clip 20 min after the event
+# Keep a 40-minute clip so the downstream frame extractor (03) and Gemini
+# detector (04) scan the same way, with more coverage after the scheduled event.
+CLIP_PRE_SECONDS = 15 * 60          # start the clip 15 min before the event
+CLIP_POST_SECONDS = 25 * 60         # end the clip 25 min after the event
 CLIP_DURATION_SECONDS = CLIP_PRE_SECONDS + CLIP_POST_SECONDS  # 2400 (40 min)
 DOWNLOAD_TAIL_SECONDS = 5 * 60      # download a little past clip end for a safe trim
 
