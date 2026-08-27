@@ -148,3 +148,54 @@ jobs:
           path: Firefox-Setup/verification-screenshots/*.jpg
           if-no-files-found: error
           retention-days: 1
+
+  # Fan out the daily Palki Sahib push ONLY after the video is built + published.
+  # This replaces the old 4:00 AM blind timer in the Cloudflare Worker: users are
+  # notified exactly when fresh Palki Sahib content is actually live.
+  # Only the Hukamnama Sahib app has a "palki" job.
+  trigger-palki-notifications:
+    name: Trigger Palki Sahib notification (Hukamnama Sahib app)
+    needs: create-video          # runs ONLY if the build+publish job fully succeeded
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch "palki" job to Apps-Notifications
+        env:
+          # Fine-grained PAT — repo access: Apps-Notifications ONLY, permission: Actions = Read and write
+          NOTIFY_DISPATCH_TOKEN: ${{ secrets.NOTIFY_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          OWNER="BHG-App-Studios"
+          REPO="Apps-Notifications"
+          REF="main"   # must match the Apps-Notifications default branch
+          WORKFLOWS="hukamnama-sahib-app.yml"
+
+          overall=0
+          for wf in $WORKFLOWS; do
+            ok=0
+            for attempt in 1 2 3; do
+              echo "→ Dispatching palki to $wf (attempt $attempt)"
+              code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" -X POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $NOTIFY_DISPATCH_TOKEN" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/$OWNER/$REPO/actions/workflows/$wf/dispatches" \
+                -d "{\"ref\":\"$REF\",\"inputs\":{\"job\":\"palki\"}}") || code="000"
+              if [ "$code" = "204" ]; then
+                echo "  ✅ $wf dispatched (HTTP 204)"
+                ok=1
+                break
+              fi
+              echo "  ⚠️  $wf returned HTTP $code: $(cat /tmp/resp.txt 2>/dev/null || true)"
+              [ "$attempt" -lt 3 ] && sleep 5 || true
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "  ❌ Giving up on $wf after 3 attempts"
+              overall=1
+            fi
+          done
+
+          if [ "$overall" -ne 0 ]; then
+            echo "❌ Palki Sahib dispatch failed."
+            exit 1
+          fi
+          echo "✅ Palki Sahib notification dispatched."
