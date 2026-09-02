@@ -156,6 +156,7 @@ async function publish() {
         // Use the same document ID while storing the reduced secondary schema.
         await Promise.all([
             postRef.set(postData),
+            db.collection('Palki-Sahib-Video').doc(postRef.id).set(secondaryPostData),
             db2.collection('Palki-Sahib-Video').doc(postRef.id).set(secondaryPostData)
         ]);
 
