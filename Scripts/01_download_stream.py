@@ -5,7 +5,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -22,10 +22,12 @@ DOWNLOADER = "yt-dlp"
 FRAGMENT_SECONDS = 5
 FRAGMENT_WORKERS = 8
 LIVE_EDGE_RETRY_SECONDS = 2
-# Maximum time (seconds) to wait for a single live-edge fragment before
-# giving up. This prevents the downloader from hanging forever when YouTube
-# stops serving new fragments (CDN hiccup, stream end, etc.).
+# How long to wait for a single fragment at the live edge before assuming
+# the stream URL has expired and triggering a URL refresh.
 LIVE_EDGE_MAX_WAIT_SECONDS = 3 * 60  # 3 minutes per fragment
+# Maximum number of times the stream URL is allowed to be refreshed via
+# yt-dlp before giving up entirely. Each refresh re-resolves the URL.
+MAX_URL_REFRESHES = 10
 DURATION_PROBE_MEDIA_FRAGMENTS = 64
 FINAL_DURATION_BUFFER_SECONDS = 5
 FORMAT_SELECTOR = (
@@ -121,12 +123,37 @@ def get_video_stream_url(video_url):
     return urls[0]
 
 
-def download_fragment(base_url, sequence, live_edge_reached):
-    separator = "&" if "?" in base_url else "?"
-    fragment_url = f"{base_url}{separator}sq={sequence}"
+def _refresh_url(video_url, url_ref, refresh_lock, refresh_count, old_url, reason):
+    """Thread-safe stream URL refresh. Only one thread refreshes at a time;
+    others skip if the URL was already updated by a concurrent thread."""
+    with refresh_lock:
+        if url_ref[0] != old_url:
+            # Another thread already refreshed — nothing to do.
+            return
+        if refresh_count[0] >= MAX_URL_REFRESHES:
+            raise RuntimeError(
+                f"Stream URL expired {MAX_URL_REFRESHES} times ({reason}). "
+                "Cannot complete download — YouTube may have changed the stream "
+                "or the network is unreliable."
+            )
+        refresh_count[0] += 1
+        attempt = refresh_count[0]
+        print(
+            f"\n[URL refresh {attempt}/{MAX_URL_REFRESHES}] {reason} — "
+            "re-resolving stream URL via yt-dlp..."
+        )
+        url_ref[0] = get_video_stream_url(video_url)
+        print(f"[URL refresh {attempt}/{MAX_URL_REFRESHES}] New URL obtained. Resuming.")
 
+
+def download_fragment(video_url, url_ref, refresh_lock, refresh_count, sequence, live_edge_reached):
     waited_seconds = 0
+
     while True:
+        base_url = url_ref[0]
+        separator = "&" if "?" in base_url else "?"
+        fragment_url = f"{base_url}{separator}sq={sequence}"
+
         try:
             response = requests.get(
                 fragment_url,
@@ -134,6 +161,15 @@ def download_fragment(base_url, sequence, live_edge_reached):
             )
         except requests.Timeout:
             response = None
+
+        # 403 = stream URL has expired. Refresh immediately and retry.
+        if response is not None and response.status_code == 403:
+            _refresh_url(
+                video_url, url_ref, refresh_lock, refresh_count,
+                base_url, f"fragment {sequence} returned HTTP 403"
+            )
+            waited_seconds = 0
+            continue
 
         if (
             response is None
@@ -149,11 +185,14 @@ def download_fragment(base_url, sequence, live_edge_reached):
 
             waited_seconds += LIVE_EDGE_RETRY_SECONDS
             if waited_seconds >= LIVE_EDGE_MAX_WAIT_SECONDS:
-                raise RuntimeError(
-                    f"Timed out waiting for live-edge fragment {sequence} after "
-                    f"{waited_seconds}s. The stream may have ended or YouTube CDN "
-                    "is not serving new fragments. Stopping download."
+                # Persistent 204/404 likely means the URL silently expired.
+                # Refresh it and reset the wait timer instead of crashing.
+                _refresh_url(
+                    video_url, url_ref, refresh_lock, refresh_count,
+                    base_url,
+                    f"fragment {sequence} unavailable for {waited_seconds}s"
                 )
+                waited_seconds = 0
 
             time.sleep(LIVE_EDGE_RETRY_SECONDS)
             continue
@@ -197,11 +236,16 @@ def probe_media_duration(media_path):
         ) from error
 
 
-def download_fragments(base_url, output_path, label, download_seconds):
+def download_fragments(video_url, output_path, label, download_seconds):
     # sq=0 contains initialization data. A few extra media fragments ensure
     # FFmpeg has enough content available for an exact final trim.
     media_fragment_count = math.ceil(download_seconds / FRAGMENT_SECONDS) + 3
     live_edge_reached = Event()
+    # url_ref is a mutable one-element list so all worker threads always read
+    # the latest URL after a refresh without needing to restart.
+    url_ref = [get_video_stream_url(video_url)]
+    refresh_lock = Lock()
+    refresh_count = [0]  # mutable counter shared across threads
     next_sequence = 0
     duration_detected = False
 
@@ -221,7 +265,10 @@ def download_fragments(base_url, output_path, label, download_seconds):
                     futures = [
                         executor.submit(
                             download_fragment,
-                            base_url,
+                            video_url,
+                            url_ref,
+                            refresh_lock,
+                            refresh_count,
                             sequence,
                             live_edge_reached,
                         )
@@ -320,8 +367,9 @@ def download_video(video_url, download_seconds):
     )
 
     try:
-        video_stream_url = get_video_stream_url(video_url)
-        download_fragments(video_stream_url, video_part, "video", download_seconds)
+        # URL resolution and automatic refresh on expiry are handled inside
+        # download_fragments — do not resolve the URL here separately.
+        download_fragments(video_url, video_part, "video", download_seconds)
 
         print(f"Trimming video to exactly {duration_minutes} minutes...")
         subprocess.run(
