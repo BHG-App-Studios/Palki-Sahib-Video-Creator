@@ -366,54 +366,40 @@ def try_model_chain(client, key_label, contents, fallback_round):
     return None, errors
 
 
-def call_gemini(clients, active_key_index, contents):
-    fallback_round = 1
+def call_gemini(clients, contents):
+    """Try every model on every key in order:
+    Key 1 → Key 2 → … → Key N → loop back to Key 1.
+    Loops up to MAX_FALLBACK_ROUNDS times before giving up."""
     last_errors = "    - (no error captured)"
 
-    while fallback_round <= MAX_FALLBACK_ROUNDS:
-        key_label, client = clients[active_key_index]
-        result, errors = try_model_chain(
-            client,
-            key_label,
-            contents,
-            fallback_round,
-        )
-        if result is not None:
-            return result, active_key_index
+    for fallback_round in range(1, MAX_FALLBACK_ROUNDS + 1):
+        for key_label, client in clients:
+            result, errors = try_model_chain(
+                client, key_label, contents, fallback_round
+            )
+            if result is not None:
+                return result
 
-        error_summary = "\n".join(f"    - {line}" for line in errors)
-        last_errors = error_summary
-
-        if active_key_index + 1 < len(clients):
+            error_summary = "\n".join(f"    - {line}" for line in errors)
+            last_errors = error_summary
             print(
                 f"All {len(GEMINI_MODELS)} models failed on {key_label}. "
-                "Errors this round:\n" + error_summary,
+                f"Errors:\n{error_summary}",
                 file=sys.stderr,
             )
-            active_key_index += 1
-            fallback_round = 1
+
+        # Every key exhausted — loop back to Key 1.
+        if fallback_round < MAX_FALLBACK_ROUNDS:
             print(
-                f"Switching to {clients[active_key_index][0]} for this and "
-                "all remaining batches.",
+                f"All keys exhausted (loop {fallback_round}/{MAX_FALLBACK_ROUNDS}). "
+                f"Looping back to Key 1 in {ALL_MODELS_RETRY_DELAY_SECONDS}s...",
                 file=sys.stderr,
             )
-            continue
-
-        if fallback_round == MAX_FALLBACK_ROUNDS:
-            break
-
-        print(
-            f"All models failed on {key_label} (last key). Retrying the "
-            f"complete fallback chain in {ALL_MODELS_RETRY_DELAY_SECONDS}s. "
-            "Errors this round:\n" + error_summary,
-            file=sys.stderr,
-        )
-        time.sleep(ALL_MODELS_RETRY_DELAY_SECONDS)
-        fallback_round += 1
+            time.sleep(ALL_MODELS_RETRY_DELAY_SECONDS)
 
     raise RuntimeError(
         "Gemini failed to return a response after "
-        f"{MAX_FALLBACK_ROUNDS} complete fallback rounds. Last errors:\n"
+        f"{MAX_FALLBACK_ROUNDS} complete loops. Last errors:\n"
         + last_errors
     )
 
@@ -461,11 +447,11 @@ def main():
     ]
 
     print(
-        f"Loaded {len(clients)} free Gemini API key(s); trying them in order "
-        f"{', '.join(label for label, _ in clients)}.",
+        f"Loaded {len(clients)} free Gemini API key(s): "
+        f"{', '.join(label for label, _ in clients)}. "
+        "Each batch tries Key 1 → Key 2 → … in order.",
         file=sys.stderr,
     )
-    active_key_index = 0
     total_batches = (len(frame_paths) + BATCH_SIZE - 1) // BATCH_SIZE
 
     for batch_number, batch_start in enumerate(
@@ -482,9 +468,8 @@ def main():
             file=sys.stderr,
         )
 
-        result, active_key_index = call_gemini(
+        result = call_gemini(
             clients,
-            active_key_index,
             build_contents(sample_parts, frame_batch),
         )
         batch_filenames = {frame_path.name for frame_path in frame_batch}
