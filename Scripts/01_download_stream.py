@@ -22,6 +22,10 @@ DOWNLOADER = "yt-dlp"
 FRAGMENT_SECONDS = 5
 FRAGMENT_WORKERS = 8
 LIVE_EDGE_RETRY_SECONDS = 2
+# Maximum time (seconds) to wait for a single live-edge fragment before
+# giving up. This prevents the downloader from hanging forever when YouTube
+# stops serving new fragments (CDN hiccup, stream end, etc.).
+LIVE_EDGE_MAX_WAIT_SECONDS = 3 * 60  # 3 minutes per fragment
 DURATION_PROBE_MEDIA_FRAGMENTS = 64
 FINAL_DURATION_BUFFER_SECONDS = 5
 FORMAT_SELECTOR = (
@@ -121,6 +125,7 @@ def download_fragment(base_url, sequence, live_edge_reached):
     separator = "&" if "?" in base_url else "?"
     fragment_url = f"{base_url}{separator}sq={sequence}"
 
+    waited_seconds = 0
     while True:
         try:
             response = requests.get(
@@ -141,6 +146,15 @@ def download_fragment(base_url, sequence, live_edge_reached):
                     "\nCaught up to the live stream. Waiting for more video "
                     "to become available..."
                 )
+
+            waited_seconds += LIVE_EDGE_RETRY_SECONDS
+            if waited_seconds >= LIVE_EDGE_MAX_WAIT_SECONDS:
+                raise RuntimeError(
+                    f"Timed out waiting for live-edge fragment {sequence} after "
+                    f"{waited_seconds}s. The stream may have ended or YouTube CDN "
+                    "is not serving new fragments. Stopping download."
+                )
+
             time.sleep(LIVE_EDGE_RETRY_SECONDS)
             continue
 
