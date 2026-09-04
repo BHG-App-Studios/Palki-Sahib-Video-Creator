@@ -25,9 +25,8 @@ LIVE_EDGE_RETRY_SECONDS = 2
 # How long to wait for a single fragment at the live edge before assuming
 # the stream URL has expired and triggering a URL refresh.
 LIVE_EDGE_MAX_WAIT_SECONDS = 3 * 60  # 3 minutes per fragment
-# Maximum number of times the stream URL is allowed to be refreshed via
-# yt-dlp before giving up entirely. Each refresh re-resolves the URL.
-MAX_URL_REFRESHES = 10
+# URL refresh limit — set to None to allow unlimited refreshes.
+MAX_URL_REFRESHES = None  # unlimited
 DURATION_PROBE_MEDIA_FRAGMENTS = 64
 FINAL_DURATION_BUFFER_SECONDS = 5
 FORMAT_SELECTOR = (
@@ -130,20 +129,14 @@ def _refresh_url(video_url, url_ref, refresh_lock, refresh_count, old_url, reaso
         if url_ref[0] != old_url:
             # Another thread already refreshed — nothing to do.
             return
-        if refresh_count[0] >= MAX_URL_REFRESHES:
-            raise RuntimeError(
-                f"Stream URL expired {MAX_URL_REFRESHES} times ({reason}). "
-                "Cannot complete download — YouTube may have changed the stream "
-                "or the network is unreliable."
-            )
         refresh_count[0] += 1
         attempt = refresh_count[0]
         print(
-            f"\n[URL refresh {attempt}/{MAX_URL_REFRESHES}] {reason} — "
+            f"\n[URL refresh #{attempt}] {reason} — "
             "re-resolving stream URL via yt-dlp..."
         )
         url_ref[0] = get_video_stream_url(video_url)
-        print(f"[URL refresh {attempt}/{MAX_URL_REFRESHES}] New URL obtained. Resuming.")
+        print(f"[URL refresh #{attempt}] New URL obtained. Resuming.")
 
 
 def download_fragment(video_url, url_ref, refresh_lock, refresh_count, sequence, live_edge_reached):
