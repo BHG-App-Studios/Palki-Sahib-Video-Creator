@@ -40,6 +40,9 @@ FORMAT_SELECTOR = (
     "bestvideo[vcodec^=avc1][height<=720]"
     "/bestvideo[height<=720]"
 )
+# How many times to re-invoke yt-dlp when archived-VOD fragments return 403.
+# Each re-run fetches fresh signed URLs and resumes the partial download.
+VOD_MAX_URL_REFRESHES = 100  # ~50 URL refreshes covers a multi-hour VOD
 
 
 def configure_utf8_console():
@@ -380,6 +383,50 @@ def video_id_from_url(video_url):
     return parse_qs(urlparse(video_url).query).get("v", ["live_stream"])[0]
 
 
+def download_vod_with_retry(video_url, video_part):
+    """Download an archived-livestream VOD via yt-dlp, automatically
+    re-invoking yt-dlp (with --continue) whenever fragment URLs expire
+    with HTTP 403.  This mirrors the _refresh_url mechanism used by the
+    live-stream fragment path."""
+    command = [
+        DOWNLOADER,
+        "--ignore-config",
+        "--cookies-from-browser",
+        "firefox",
+        "--js-runtimes",
+        "node",
+        "--remote-components",
+        "ejs:github",
+        "-f", FORMAT_SELECTOR,
+        # Resume a partial download instead of starting over.
+        "--continue",
+        # Fail fast on a single bad fragment (2 retries) so the outer
+        # retry loop triggers a full URL refresh quickly instead of
+        # spending 10 retries on an already-expired signed URL.
+        "--fragment-retries", "2",
+        "-o", str(video_part),
+        video_url,
+    ]
+
+    for attempt in range(1, VOD_MAX_URL_REFRESHES + 2):
+        result = subprocess.run(command)
+        if result.returncode == 0:
+            return  # success
+
+        if attempt > VOD_MAX_URL_REFRESHES:
+            raise RuntimeError(
+                f"yt-dlp VOD download failed after {VOD_MAX_URL_REFRESHES} "
+                "URL refreshes. Giving up."
+            )
+
+        print(
+            f"\n[VOD URL refresh #{attempt}/{VOD_MAX_URL_REFRESHES}] "
+            "yt-dlp exited with an error (likely HTTP 403 — signed URLs "
+            "expired). Re-running yt-dlp with --continue to fetch fresh "
+            "URLs and resume the partial download..."
+        )
+
+
 def download_video(video_url, download_seconds):
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -407,25 +454,13 @@ def download_video(video_url, download_seconds):
 
         if is_archived_livestream:
             # An ended livestream no longer exposes the live HLS sequence
-            # (sq=...) used by download_fragments. Download the VOD normally.
+            # (sq=...) used by download_fragments. Download the VOD with
+            # automatic URL-expiry retry (mirrors _refresh_url on the live path).
             print(
                 "Archived livestream detected (live_status='was_live'); "
-                "downloading the VOD with yt-dlp..."
+                "downloading the VOD with yt-dlp (with URL-refresh retry)..."
             )
-            command = [
-                DOWNLOADER,
-                "--ignore-config",
-                "--cookies-from-browser",
-                "firefox",
-                "--js-runtimes",
-                "node",
-                "--remote-components",
-                "ejs:github",
-                "-f", FORMAT_SELECTOR,
-                "-o", str(video_part),
-                video_url,
-            ]
-            subprocess.run(command, check=True)
+            download_vod_with_retry(video_url, video_part)
         else:
             # Active live stream — use the fast fragment-download path.
             download_fragments(video_url, video_part, "video", download_seconds)
