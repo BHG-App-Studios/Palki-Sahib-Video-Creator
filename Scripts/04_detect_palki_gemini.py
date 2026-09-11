@@ -481,16 +481,39 @@ def main():
         if not is_match:
             continue
 
+        matched_index = next(
+            index
+            for index, frame_path in enumerate(frame_paths)
+            if frame_path.name == result.frame
+        )
+        verification_start = matched_index - 3
+        verification_end = matched_index + 7
+        if verification_start < 0 or verification_end > len(frame_paths):
+            print(
+                f"  Verification rejected {result.frame}: fewer than 3 earlier "
+                "or 6 later frames are available. Continuing to the next batch.",
+                file=sys.stderr,
+            )
+            continue
+
+        verification_batch = frame_paths[verification_start:verification_end]
         print(
             f"  Possible match: {result.frame} at {result.confidence}% confidence. "
-            "Verifying the same batch with a fresh Gemini request...",
+            f"Verifying with {verification_batch[0].name} to "
+            f"{verification_batch[-1].name}; the match is frame 4/10...",
             file=sys.stderr,
         )
-        verification = call_gemini(clients, contents)
+        verification = call_gemini(
+            clients,
+            build_contents(sample_parts, verification_batch),
+        )
+        verification_filenames = {
+            frame_path.name for frame_path in verification_batch
+        }
         is_verified = (
             verification.match_found
             and verification.frame == result.frame
-            and verification.frame in batch_filenames
+            and verification.frame in verification_filenames
             and verification.confidence is not None
             and verification.confidence > MINIMUM_CONFIDENCE
         )
