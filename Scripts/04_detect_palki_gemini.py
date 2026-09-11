@@ -468,27 +468,60 @@ def main():
             file=sys.stderr,
         )
 
-        result = call_gemini(
-            clients,
-            build_contents(sample_parts, frame_batch),
-        )
+        contents = build_contents(sample_parts, frame_batch)
+        result = call_gemini(clients, contents)
         batch_filenames = {frame_path.name for frame_path in frame_batch}
 
-        if (
+        is_match = (
             result.match_found
             and result.frame in batch_filenames
             and result.confidence is not None
             and result.confidence > MINIMUM_CONFIDENCE
-        ):
-            save_response(
-                {
-                    "match_found": True,
-                    "frame": result.frame,
-                    "confidence": result.confidence,
-                    "reason": result.reason,
-                }
+        )
+        if not is_match:
+            continue
+
+        print(
+            f"  Possible match: {result.frame} at {result.confidence}% confidence. "
+            "Verifying the same batch with a fresh Gemini request...",
+            file=sys.stderr,
+        )
+        verification = call_gemini(clients, contents)
+        is_verified = (
+            verification.match_found
+            and verification.frame == result.frame
+            and verification.frame in batch_filenames
+            and verification.confidence is not None
+            and verification.confidence > MINIMUM_CONFIDENCE
+        )
+
+        if not is_verified:
+            verification_summary = (
+                f"frame={verification.frame}, confidence={verification.confidence}"
+                if verification.match_found
+                else "no reliable match"
             )
-            return 0
+            print(
+                f"  Verification rejected {result.frame} ({verification_summary}). "
+                "Continuing to the next batch.",
+                file=sys.stderr,
+            )
+            continue
+
+        print(
+            f"  Match verified twice: {verification.frame} at "
+            f"{verification.confidence}% confidence.",
+            file=sys.stderr,
+        )
+        save_response(
+            {
+                "match_found": True,
+                "frame": verification.frame,
+                "confidence": verification.confidence,
+                "reason": verification.reason,
+            }
+        )
+        return 0
 
     save_response({"match_found": False})
     return 0
