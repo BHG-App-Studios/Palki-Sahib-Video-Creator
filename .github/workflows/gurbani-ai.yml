@@ -152,9 +152,9 @@ jobs:
   # Fan out the daily Palki Sahib push ONLY after the video is built + published.
   # This replaces the old 4:00 AM blind timer in the Cloudflare Worker: users are
   # notified exactly when fresh Palki Sahib content is actually live.
-  # Only the Hukamnama Sahib app has a "palki" job.
+  # Both the Hukamnama Sahib app and the Gurbani app have a "palki" job.
   trigger-palki-notifications:
-    name: Trigger Palki Sahib notification (Hukamnama Sahib app)
+    name: Trigger Palki Sahib notification (Hukamnama Sahib + Gurbani apps)
     needs: create-video          # runs ONLY if the build+publish job fully succeeded
     runs-on: ubuntu-latest
     steps:
@@ -167,7 +167,7 @@ jobs:
           OWNER="BHG-App-Studios"
           REPO="Apps-Notifications"
           REF="main"   # must match the Apps-Notifications default branch
-          WORKFLOWS="hukamnama-sahib-app.yml"
+          WORKFLOWS="hukamnama-sahib-app.yml gurbani-app.yml"
 
           overall=0
           for wf in $WORKFLOWS; do
