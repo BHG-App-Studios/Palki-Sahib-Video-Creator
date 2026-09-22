@@ -54,22 +54,51 @@ GEMINI_REQUEST_TIMEOUT_MILLISECONDS = 60_000
 
 PROMPT = """You are an expert computer vision assistant.
 
-Your job is to inspect a sequence of extracted video frames from the official SGPC Harmandir Sahib livestream.
+Your job is to inspect a sequence of extracted video frames from the official SGPC Harmandir Sahib livestream and find the ONE frame that looks EXACTLY like the POSITIVE SAMPLE images you are given.
+
+=========================================================
+STUDY THE SAMPLE IMAGES FIRST (MOST IMPORTANT)
+=========================================================
+
+The POSITIVE SAMPLE images are the ground truth. The frame you return MUST match those samples. Study them before looking at any candidate frame.
+
+The two things that define a correct match are:
+
+• Baba Ji is CARRYING Sri Guru Granth Sahib Ji (a decorated, cloth-wrapped Rumala bundle) balanced ON TOP OF HIS HEAD, holding it up with BOTH raised hands.
+• Baba Ji is wearing a MARIGOLD (orange/yellow) flower garland around his neck.
+
+The marigold garland is the key signal that the procession has started and Baba Ji is carrying Sri Guru Granth Sahib Ji outside toward the Palki Sahib — NOT the earlier moment inside where it is just being lifted onto the head (no garland yet).
+
+Do not depend on background colors, lighting, or decorations — those can change from day to day. Rely on the two points above and the overall look of the samples.
 
 =========================================================
 GOAL
 =========================================================
 
-Find the EXACT FIRST frame where the Palki Sahib procession begins.
-
-Specifically detect the strict starting moment when:
-
-• Baba Ji picks up and is actively carrying Sri Guru Granth Sahib Ji ON HIS HEAD.
-• The Sri Guru Granth Sahib Ji is visibly placed on Baba Ji's head.
-• The ceremonial procession has just started with this precise action.
-• DO NOT choose a frame if it only shows the decorated Palki Sahib from a distance. The exact starting point is Baba Ji carrying Sri Guru Granth Sahib Ji on his head.
+Find the EXACT FIRST (earliest) frame that matches the samples: Baba Ji actively CARRYING Sri Guru Granth Sahib Ji on his head with both hands raised, wearing the marigold garland, as it is carried toward the Palki Sahib.
 
 Return ONLY the earliest matching frame.
+
+=========================================================
+DO NOT MATCH THESE (COMMON MISTAKES)
+=========================================================
+
+
+✘ ONLY the decorated Palki Sahib visible from afar, without Baba Ji carrying on his head.
+
+✘ Baba Ji not yet carrying Sri Guru Granth Sahib Ji on his head.
+
+✘ Empty Darbar Sahib.
+
+✘ Sangat sitting.
+
+✘ Kirtan only.
+
+✘ Camera moving / blurry.
+
+✘ Before or after the procession.
+
+✘ Partial visibility with low confidence.
 
 =========================================================
 INPUT
@@ -117,15 +146,17 @@ Never sort alphabetically.
 DETECTION RULES
 =========================================================
 
-Positive Match:
+Positive Match (must look like the samples):
 
-✔ Baba Ji actively carrying Sri Guru Granth Sahib Ji ON HIS HEAD
+✔ Baba Ji actively CARRYING Sri Guru Granth Sahib Ji balanced ON HIS HEAD with both hands raised
 
-✔ Sikh ceremonial procession
+✔ Baba Ji is wearing a MARIGOLD flower garland
 
-✔ Procession has STARTED (strictly marked by Baba Ji picking up Sri Guru Granth Sahib Ji)
+✔ Sikh ceremonial procession that has STARTED and is moving toward the Palki Sahib
 
 Negative Match:
+
+✘ Baba Ji is still lifting / placing Sri Guru Granth Sahib Ji onto the head and is NOT yet wearing the marigold garland (wrong, earlier moment)
 
 ✘ ONLY the decorated Palki Sahib is visible from afar (without Baba Ji carrying Sri Guru Granth Sahib Ji on his head)
 
