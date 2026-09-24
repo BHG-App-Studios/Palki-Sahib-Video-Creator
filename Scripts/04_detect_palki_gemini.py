@@ -28,26 +28,19 @@ SAMPLES_FOLDER = BASE_DIR / "Samples"
 RESPONSE_FOLDER = BASE_DIR / "AI-Response"
 RESPONSE_FILE = RESPONSE_FOLDER / "response.json"
 
-# Free Gemini API keys are read from GEMINI_API_KEY_1, GEMINI_API_KEY_2, ...
-# and tried strictly in that numeric order.  MAX_API_KEYS only bounds how far
-# the loader scans; you do not need that many keys configured.
-MAX_API_KEYS = 10
-GEMINI_MODELS = (
-    "gemini-3.6-flash",
-    "gemini-3.5-flash",
-    "gemini-3.5-flash-lite",
-)
+# A single free Gemini API key is read from GEMINI_API_KEY (GOOGLE_API_KEY is
+# also accepted for backward compatibility).
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 BATCH_SIZE = 10
 MINIMUM_CONFIDENCE = 95
-MAX_IMAGE_SIZE = (1024, 1024)
+# 765x765 keeps each image just under Gemini's 768px single-tile threshold,
+# so every image costs the minimum 258 tokens.
+MAX_IMAGE_SIZE = (765, 765)
 JPEG_QUALITY = 85
-MODEL_RETRY_DELAY_SECONDS = 2
-ALL_MODELS_RETRY_DELAY_SECONDS = 30
-MAX_FALLBACK_ROUNDS = 5
+RETRY_DELAY_SECONDS = 30
+MAX_RETRIES = 5
 # Do not let one stalled Gemini request hold the GitHub Actions job forever.
-# When this limit is reached, the existing fallback chain retries the exact
-# same frame batch with the next model.
 GEMINI_REQUEST_TIMEOUT_MILLISECONDS = 60_000
 
 # ----------------------------------------
@@ -239,36 +232,15 @@ def chronological_key(image_path):
     )
 
 
-def load_api_keys():
-    """Collect the free Gemini API keys in priority order.
+def load_api_key():
+    """Read the single free Gemini API key.
 
-    Keys are read from GEMINI_API_KEY_1, GEMINI_API_KEY_2, ... and returned as
-    (label, key) pairs in that numeric order, which is the exact order the
-    fallback engine consumes them: every model is tried on key 1 first, and the
-    next key is only used once all models are exhausted on the current one.
-
-    Blank keys are ignored and duplicate keys are collapsed so a misconfigured
-    secret cannot silently waste a whole fallback round.  For backward
-    compatibility, a single unnumbered GEMINI_API_KEY (or GOOGLE_API_KEY) is
-    used only when no numbered keys are present.
+    Uses GEMINI_API_KEY, falling back to GOOGLE_API_KEY for backward
+    compatibility.  Returns the key string, or None when neither is set.
     """
-    keys = []
-    seen = set()
-
-    for index in range(1, MAX_API_KEYS + 1):
-        value = os.getenv(f"GEMINI_API_KEY_{index}")
-        value = value.strip() if value else ""
-        if value and value not in seen:
-            seen.add(value)
-            keys.append((str(index), value))
-
-    if not keys:
-        fallback = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        fallback = fallback.strip() if fallback else ""
-        if fallback:
-            keys.append(("1", fallback))
-
-    return keys
+    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    key = key.strip() if key else ""
+    return key or None
 
 
 def find_images(folder):
@@ -355,18 +327,22 @@ def describe_gemini_error(error):
     return " | ".join(parts)
 
 
-def try_model_chain(client, key_label, contents, fallback_round):
-    errors = []
+def call_gemini(client, contents):
+    """Call the single Gemini model, retrying the same request on failure.
 
-    for model_number, model_name in enumerate(GEMINI_MODELS, start=1):
+    There is no model or key fallback: one model, one key.  On any error
+    (rate limit, transient outage, timeout, non-JSON reply) the exact same
+    request is retried up to MAX_RETRIES times with a delay in between."""
+    last_error = "(no error captured)"
+
+    for attempt in range(1, MAX_RETRIES + 1):
         print(
-            f"Trying {key_label}, model {model_number}/"
-            f"{len(GEMINI_MODELS)} (round {fallback_round}): {model_name}",
+            f"Trying {GEMINI_MODEL} (attempt {attempt}/{MAX_RETRIES})",
             file=sys.stderr,
         )
         try:
             response = client.models.generate_content(
-                model=model_name,
+                model=GEMINI_MODEL,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -374,74 +350,33 @@ def try_model_chain(client, key_label, contents, fallback_round):
                 ),
             )
 
-            return MatchResult.model_validate(json.loads(response.text)), None
+            return MatchResult.model_validate(json.loads(response.text))
         except Exception as error:
-            detail = describe_gemini_error(error)
-            errors.append(f"{model_name} on {key_label}: {detail}")
-
-            # Always log the real Gemini error so failures are diagnosable.
+            last_error = describe_gemini_error(error)
             print(
-                f"  [FAIL] {model_name} on {key_label} "
-                f"(round {fallback_round}): {detail}",
+                f"  [FAIL] {GEMINI_MODEL} (attempt {attempt}/{MAX_RETRIES}): "
+                f"{last_error}",
                 file=sys.stderr,
             )
 
-            if model_number < len(GEMINI_MODELS):
+            if attempt < MAX_RETRIES:
                 print(
-                    f"  -> Falling back to the next model in "
-                    f"{MODEL_RETRY_DELAY_SECONDS}s...",
+                    f"  -> Retrying in {RETRY_DELAY_SECONDS}s...",
                     file=sys.stderr,
                 )
-                time.sleep(MODEL_RETRY_DELAY_SECONDS)
-
-    return None, errors
-
-
-def call_gemini(clients, contents):
-    """Try every model on every key in order:
-    Key 1 → Key 2 → … → Key N → loop back to Key 1.
-    Loops up to MAX_FALLBACK_ROUNDS times before giving up."""
-    last_errors = "    - (no error captured)"
-
-    for fallback_round in range(1, MAX_FALLBACK_ROUNDS + 1):
-        for key_label, client in clients:
-            result, errors = try_model_chain(
-                client, key_label, contents, fallback_round
-            )
-            if result is not None:
-                return result
-
-            error_summary = "\n".join(f"    - {line}" for line in errors)
-            last_errors = error_summary
-            print(
-                f"All {len(GEMINI_MODELS)} models failed on {key_label}. "
-                f"Errors:\n{error_summary}",
-                file=sys.stderr,
-            )
-
-        # Every key exhausted — loop back to Key 1.
-        if fallback_round < MAX_FALLBACK_ROUNDS:
-            print(
-                f"All keys exhausted (loop {fallback_round}/{MAX_FALLBACK_ROUNDS}). "
-                f"Looping back to Key 1 in {ALL_MODELS_RETRY_DELAY_SECONDS}s...",
-                file=sys.stderr,
-            )
-            time.sleep(ALL_MODELS_RETRY_DELAY_SECONDS)
+                time.sleep(RETRY_DELAY_SECONDS)
 
     raise RuntimeError(
-        "Gemini failed to return a response after "
-        f"{MAX_FALLBACK_ROUNDS} complete loops. Last errors:\n"
-        + last_errors
+        f"Gemini failed to return a response after {MAX_RETRIES} attempts. "
+        f"Last error: {last_error}"
     )
 
 
 def main():
-    api_keys = load_api_keys()
-    if not api_keys:
+    api_key = load_api_key()
+    if not api_key:
         raise RuntimeError(
-            "No Gemini API keys configured. Set GEMINI_API_KEY_1 "
-            "(and optionally GEMINI_API_KEY_2, GEMINI_API_KEY_3, "
-            "GEMINI_API_KEY_4, ...)."
+            "No Gemini API key configured. Set GEMINI_API_KEY."
         )
 
     frame_paths = sorted(
@@ -464,23 +399,15 @@ def main():
         for sample_path in sample_paths
     ]
 
-    clients = [
-        (
-            f"key {label}",
-            genai.Client(
-                api_key=api_key,
-                http_options=types.HttpOptions(
-                    timeout=GEMINI_REQUEST_TIMEOUT_MILLISECONDS
-                ),
-            ),
-        )
-        for label, api_key in api_keys
-    ]
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=GEMINI_REQUEST_TIMEOUT_MILLISECONDS
+        ),
+    )
 
     print(
-        f"Loaded {len(clients)} free Gemini API key(s): "
-        f"{', '.join(label for label, _ in clients)}. "
-        "Each batch tries Key 1 → Key 2 → … in order.",
+        f"Loaded Gemini API key. Using model {GEMINI_MODEL}.",
         file=sys.stderr,
     )
     total_batches = (len(frame_paths) + BATCH_SIZE - 1) // BATCH_SIZE
@@ -500,7 +427,7 @@ def main():
         )
 
         contents = build_contents(sample_parts, frame_batch)
-        result = call_gemini(clients, contents)
+        result = call_gemini(client, contents)
         batch_filenames = {frame_path.name for frame_path in frame_batch}
 
         is_match = (
@@ -535,7 +462,7 @@ def main():
             file=sys.stderr,
         )
         verification = call_gemini(
-            clients,
+            client,
             build_contents(sample_parts, verification_batch),
         )
         verification_filenames = {

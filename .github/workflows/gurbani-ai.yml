@@ -19,10 +19,7 @@ jobs:
       PYTHONUNBUFFERED: "1"
       PYTHONUTF8: "1"
       YT_API_KEY: ${{ secrets.YT_API_KEY }}
-      GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
-      GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-      GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
-      GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       HLS_SECRET: ${{ secrets.HLS_SECRET }}
       FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
       FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
@@ -64,13 +61,8 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:YT_API_KEY)) {
             throw "Missing GitHub Actions secret: YT_API_KEY"
           }
-          if (
-            [string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY_1) -and
-            [string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY_2) -and
-            [string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY_3) -and
-            [string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY_4)
-          ) {
-            throw "Add at least one free Gemini key: GEMINI_API_KEY_1 (and optionally _2, _3, _4)."
+          if ([string]::IsNullOrWhiteSpace($env:GEMINI_API_KEY)) {
+            throw "Missing GitHub Actions secret: GEMINI_API_KEY"
           }
           foreach ($secretName in @(
             "HLS_SECRET",
