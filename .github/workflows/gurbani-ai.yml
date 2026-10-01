@@ -34,16 +34,16 @@ jobs:
       FACEBOOK_ACCESS_TOKEN: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
       FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
       INSTAGRAM_PROFILE_ID: ${{ secrets.INSTAGRAM_PROFILE_ID }}
-      R2_ASSETS_KEY: ${{ secrets.R2_ASSETS_KEY }}
+      ASSETS_GITHUB_TOKEN: ${{ secrets.ASSETS_GITHUB_TOKEN }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Download private assets from R2
+      - name: Download private assets from companion repo
         shell: pwsh
         run: |
-          & "$env:GITHUB_WORKSPACE\Scripts\Download-From-R2.ps1" -Destination "$env:GITHUB_WORKSPACE"
+          & "$env:GITHUB_WORKSPACE\Scripts\Download-Assets.ps1" -Destination "$env:GITHUB_WORKSPACE"
 
       - name: Install Firefox and restore profile
         id: firefox
