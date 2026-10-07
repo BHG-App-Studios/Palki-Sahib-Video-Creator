@@ -2,7 +2,16 @@ name: Run Gurbani AI
 
 on:
   workflow_dispatch:
-  
+    inputs:
+      # Tick this to build a video without publishing it anywhere. Everything is
+      # still downloaded, cut, detected and encoded; the finished files are
+      # uploaded as run artifacts instead of going to Cloudflare/Firebase,
+      # YouTube, Facebook or Instagram, and no push notification is sent.
+      # Defaults to false so an API-triggered run always publishes for real.
+      skip_publish:
+        description: "Dry run (test): build the videos, skip ALL publishing, upload them as artifacts"
+        type: boolean
+        default: false
 permissions:
   contents: read
 
@@ -18,6 +27,7 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       PYTHONUTF8: "1"
+      SKIP_PUBLISH: ${{ inputs.skip_publish }}
       YT_API_KEY: ${{ secrets.YT_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       HLS_SECRET: ${{ secrets.HLS_SECRET }}
@@ -134,6 +144,22 @@ jobs:
       - name: Run Gurbani AI pipeline
         run: python main.py
 
+      # Dry-run output. always() so the files still come back when the pipeline
+      # failed part-way -- that is exactly when they are worth inspecting.
+      - name: Upload built videos as artifacts (dry run)
+        if: ${{ always() && inputs.skip_publish }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: palki-sahib-videos-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            Final_Hukamnama_*.mp4
+            output_mp4/*.mp4
+            output_hls/**
+            thumbnail_*.jpg
+            Today-Short/*.mp4
+
       - name: Notify admin app of failed run
         if: ${{ failure() }}
         run: node Publish-Scripts/notify-admin-failure.js
@@ -154,6 +180,9 @@ jobs:
   trigger-palki-notifications:
     name: Trigger Palki Sahib notification (Hukamnama Sahib + Gurbani apps)
     needs: create-video          # runs ONLY if the build+publish job fully succeeded
+    # Never notify real app users for a dry run. Adding `if` replaces the implicit
+    # needs-success check, so it is restated here explicitly.
+    if: ${{ !inputs.skip_publish && needs.create-video.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch "palki" job to Apps-Notifications
