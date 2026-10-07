@@ -24,10 +24,13 @@ jobs:
     name: Set up Palki Sahib Video Creator
     runs-on: windows-latest
     timeout-minutes: 240
+    outputs:
+      # Normalised to exactly "true" / "false" so the notification job can test
+      # it unambiguously (see the "Resolve run mode" step).
+      run_mode: ${{ steps.run_mode.outputs.test_run }}
     env:
       PYTHONUNBUFFERED: "1"
       PYTHONUTF8: "1"
-      SKIP_PUBLISH: ${{ inputs.skip_publish }}
       YT_API_KEY: ${{ secrets.YT_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       HLS_SECRET: ${{ secrets.HLS_SECRET }}
@@ -47,6 +50,24 @@ jobs:
       ASSETS_GITHUB_TOKEN: ${{ secrets.ASSETS_GITHUB_TOKEN }}
 
     steps:
+      # Decide the run mode once, up front, using the same rule the scripts use
+      # ("true", any casing, is a test run -- anything else is production) and
+      # publish it as a job output. The notification job gates on this instead of
+      # on the raw input, so there is exactly one place that decides, and the
+      # resolved mode is visible in the log.
+      - name: Resolve run mode
+        id: run_mode
+        shell: pwsh
+        run: |
+          $raw = "${{ inputs.skip_publish }}".Trim().ToLower()
+          $testRun = if ($raw -eq 'true') { 'true' } else { 'false' }
+          if ($testRun -eq 'true') {
+            Write-Host "🧪 TEST RUN — videos will be built and uploaded as artifacts. Publishing (Cloudflare/Firebase, YouTube, Facebook, Instagram) and app notifications are all disabled."
+          } else {
+            Write-Host "🚀 PRODUCTION RUN — the video will be built and published as normal."
+          }
+          "test_run=$testRun" >> $env:GITHUB_OUTPUT
+
       - name: Check out repository
         uses: actions/checkout@v6
 
@@ -142,12 +163,17 @@ jobs:
         run: npm install puppeteer firebase-admin googleapis
 
       - name: Run Gurbani AI pipeline
+        # The scripts read this to pick the test stream and to skip publishing.
+        # It is the same normalised value the notification job gates on, so the
+        # workflow and the scripts cannot disagree about the run mode.
+        env:
+          SKIP_PUBLISH: ${{ steps.run_mode.outputs.test_run }}
         run: python main.py
 
       # Dry-run output. always() so the files still come back when the pipeline
       # failed part-way -- that is exactly when they are worth inspecting.
       - name: Upload built videos as artifacts (dry run)
-        if: ${{ always() && inputs.skip_publish }}
+        if: ${{ always() && steps.run_mode.outputs.test_run == 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: palki-sahib-videos-${{ github.run_number }}
@@ -180,9 +206,12 @@ jobs:
   trigger-palki-notifications:
     name: Trigger Palki Sahib notification (Hukamnama Sahib + Gurbani apps)
     needs: create-video          # runs ONLY if the build+publish job fully succeeded
-    # Never notify real app users for a dry run. Adding `if` replaces the implicit
-    # needs-success check, so it is restated here explicitly.
-    if: ${{ !inputs.skip_publish && needs.create-video.result == 'success' }}
+    # Pushes a real notification to app users, so it must never fire for a test
+    # run. Comparing the job's normalised mode output (exactly "true"/"false")
+    # avoids the trap in `!inputs.skip_publish`, which would read the string
+    # "false" as truthy and silently stop notifying on production runs too.
+    # Adding `if` replaces the implicit needs-success check, so restate it.
+    if: ${{ needs.create-video.outputs.run_mode != 'true' && needs.create-video.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch "palki" job to Apps-Notifications
